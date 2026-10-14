@@ -48,6 +48,10 @@ import {
   User,
   Calendar,
   Tag as TagIcon,
+  Filter,
+  LayoutGrid,
+  List,
+  Box,
 } from 'lucide-react';
 
 interface OSDetailPageProps {
@@ -217,6 +221,14 @@ export const OSDetailPage: React.FC<OSDetailPageProps> = ({
   const [newMatQtd, setNewMatQtd] = useState(1);
   const [newMatUn, setNewMatUn] = useState('un');
   const [newMatLoc, setNewMatLoc] = useState('');
+  const [newMatItemPlantaId, setNewMatItemPlantaId] = useState<string>('');
+  const [materialFilterItem, setMaterialFilterItem] = useState<string>('todos');
+  const [materialViewMode, setMaterialViewMode] = useState<'grouped' | 'list'>('grouped');
+
+  const handleOpenAddForPiece = (itemId?: string) => {
+    setNewMatItemPlantaId(itemId || '');
+    setShowAddMat(true);
+  };
 
   // Salvar alterações do Plano de Corte
   const handleSaveCutPlan = async (aprovar = false) => {
@@ -264,11 +276,13 @@ export const OSDetailPage: React.FC<OSDetailPageProps> = ({
       unidade: newMatUn.trim() || 'un',
       status_separacao: 'pendente',
       localizacao_estoque: newMatLoc.trim() || undefined,
+      item_planta_id: newMatItemPlantaId.trim() || undefined,
     });
 
     setNewMatDesc('');
     setNewMatQtd(1);
     setNewMatLoc('');
+    setNewMatItemPlantaId('');
     setShowAddMat(false);
   };
 
@@ -710,6 +724,15 @@ export const OSDetailPage: React.FC<OSDetailPageProps> = ({
               <ItemPlantaTable
                 osId={order.id}
                 itens={filteredItens}
+                materiais={order.materiais}
+                onNavigateToMateriais={(itemId) => {
+                  if (itemId) {
+                    setMaterialFilterItem(itemId);
+                  } else {
+                    setMaterialFilterItem('todos');
+                  }
+                  setActiveTab('materiais');
+                }}
                 osAmbientes={orderAmbientesList}
                 onAddItem={onAddItemPlanta}
                 onUpdateItem={onUpdateItemPlanta}
@@ -926,30 +949,87 @@ export const OSDetailPage: React.FC<OSDetailPageProps> = ({
           {activeTab === 'materiais' && (
             <div className="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-lg p-5 space-y-6 shadow-sm">
               
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-light-border dark:border-dark-border">
+              {/* Cabeçalho da Aba de Materiais com Controles */}
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-3 border-b border-light-border dark:border-dark-border">
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-light-text dark:text-dark-text">
-                    Separação de Chapas, LEDs e Insumos
-                  </h3>
-                  <p className="text-[11px] text-light-muted dark:text-dark-muted">
-                    Conferência física de chapas, fitas VHB, fontes e módulos antes da usinagem
+                  <div className="flex items-center gap-2">
+                    <Package className="w-4 h-4 text-neutral-500" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-light-text dark:text-dark-text">
+                      Separação de Chapas, LEDs e Insumos por Item da OS
+                    </h3>
+                  </div>
+                  <p className="text-[11px] text-light-muted dark:text-dark-muted mt-0.5">
+                    Destine cada insumo a uma peça específica da obra ou mantenha como material geral
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Modo de Visualização: Agrupado vs Lista */}
+                  <div className="inline-flex rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setMaterialViewMode('grouped')}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded transition-colors ${
+                        materialViewMode === 'grouped'
+                          ? 'bg-black text-white dark:bg-white dark:text-black font-semibold'
+                          : 'text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white'
+                      }`}
+                      title="Visualizar materiais agrupados por peça da obra"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span>Por Peça</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMaterialViewMode('list')}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded transition-colors ${
+                        materialViewMode === 'list'
+                          ? 'bg-black text-white dark:bg-white dark:text-black font-semibold'
+                          : 'text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white'
+                      }`}
+                      title="Visualizar tabela corrida com todos os materiais"
+                    >
+                      <List className="w-3.5 h-3.5" />
+                      <span>Tabela Geral</span>
+                    </button>
+                  </div>
+
+                  {/* Filtro por Item da Obra */}
+                  <div className="flex items-center gap-1.5">
+                    <Filter className="w-3.5 h-3.5 text-neutral-400" />
+                    <select
+                      value={materialFilterItem}
+                      onChange={(e) => setMaterialFilterItem(e.target.value)}
+                      className="px-2.5 py-1.5 text-xs rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface text-light-text dark:text-dark-text focus:outline-none max-w-[200px] truncate"
+                      title="Filtrar por peça da obra"
+                    >
+                      <option value="todos">Todas as Peças & Geral</option>
+                      <option value="geral">Geral da Obra (sem peça)</option>
+                      {(order.itens_planta || []).map((it) => (
+                        <option key={it.id} value={it.id}>
+                          {it.codigo} - {it.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Ações */}
                   <button
                     type="button"
                     onClick={handleInsertStandardKit}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface hover:bg-neutral-200 dark:hover:bg-neutral-800 text-xs font-semibold text-light-text dark:text-dark-text transition-colors"
-                    title="Adicionar kit de LEDs, fontes 12V, PU40 e fita VHB"
+                    title="Adicionar kit padrão de LEDs, fontes 12V, PU40 e fita VHB"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Inserir Kit CV</span>
+                    <span>Kit CV</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => setShowAddMat(!showAddMat)}
+                    onClick={() => {
+                      setNewMatItemPlantaId(materialFilterItem !== 'todos' && materialFilterItem !== 'geral' ? materialFilterItem : '');
+                      setShowAddMat(!showAddMat);
+                    }}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-black text-white dark:bg-white dark:text-black text-xs font-semibold hover:opacity-90 transition-opacity"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -958,7 +1038,38 @@ export const OSDetailPage: React.FC<OSDetailPageProps> = ({
                 </div>
               </div>
 
-              {/* Barra de Progresso */}
+              {/* Métricas de Materiais */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="p-3 rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface">
+                  <span className="text-[11px] text-light-muted dark:text-dark-muted font-medium">Total de Insumos</span>
+                  <div className="text-xl font-bold font-mono-code text-light-text dark:text-dark-text">
+                    {(order.materiais || []).length}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface">
+                  <span className="text-[11px] text-light-muted dark:text-dark-muted font-medium">Destinados a Peças</span>
+                  <div className="text-xl font-bold font-mono-code text-light-text dark:text-dark-text">
+                    {(order.materiais || []).filter((m) => m.item_planta_id && (order.itens_planta || []).some((it) => it.id === m.item_planta_id)).length}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface">
+                  <span className="text-[11px] text-light-muted dark:text-dark-muted font-medium">Gerais da Obra</span>
+                  <div className="text-xl font-bold font-mono-code text-light-text dark:text-dark-text">
+                    {(order.materiais || []).filter((m) => !m.item_planta_id || !(order.itens_planta || []).some((it) => it.id === m.item_planta_id)).length}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface">
+                  <span className="text-[11px] text-light-muted dark:text-dark-muted font-medium">Separados</span>
+                  <div className="text-xl font-bold font-mono-code text-light-text dark:text-dark-text">
+                    {(order.materiais || []).filter((m) => m.status_separacao === 'separado').length} / {(order.materiais || []).length}
+                  </div>
+                </div>
+              </div>
+
+              {/* Barra de Progresso Global */}
               <div className="p-3.5 rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface">
                 <MaterialProgressBar materiais={order.materiais} />
               </div>
@@ -967,24 +1078,44 @@ export const OSDetailPage: React.FC<OSDetailPageProps> = ({
               {showAddMat && (
                 <form
                   onSubmit={handleAddNewMaterial}
-                  className="p-3.5 rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface space-y-3 animate-in fade-in"
+                  className="p-4 rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface space-y-3 animate-in fade-in"
                 >
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="flex items-center justify-between pb-2 border-b border-light-border dark:border-dark-border">
+                    <span className="text-xs font-bold uppercase tracking-wider text-light-text dark:text-dark-text flex items-center gap-1.5">
+                      <Plus className="w-3.5 h-3.5" />
+                      Novo Insumo / Material
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddMat(false)}
+                      className="text-neutral-400 hover:text-black dark:hover:text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                    {/* Destinado ao Item da OS */}
                     <div className="sm:col-span-2">
                       <label className="block font-medium mb-1 text-light-text dark:text-dark-text">
-                        Descrição do Material *
+                        Destinado à Peça / Item da Obra
                       </label>
-                      <input
-                        type="text"
-                        required
-                        value={newMatDesc}
-                        onChange={(e) => setNewMatDesc(e.target.value)}
-                        placeholder="Ex: ACM Azul 3mm 5.00x1.22m ou Fita VHB 19mm"
+                      <select
+                        value={newMatItemPlantaId}
+                        onChange={(e) => setNewMatItemPlantaId(e.target.value)}
                         className="w-full px-2.5 py-1.5 rounded border border-light-border dark:border-dark-border bg-light-card dark:bg-dark-card text-light-text dark:text-dark-text focus:outline-none"
-                      />
+                      >
+                        <option value="">Geral da Obra (sem peça específica)</option>
+                        {(order.itens_planta || []).map((it) => (
+                          <option key={it.id} value={it.id}>
+                            {it.codigo} - {it.nome} {it.ambiente ? `(${it.ambiente})` : ''}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
-                    <div>
+                    {/* Categoria */}
+                    <div className="sm:col-span-2">
                       <label className="block font-medium mb-1 text-light-text dark:text-dark-text">
                         Categoria
                       </label>
@@ -1003,6 +1134,22 @@ export const OSDetailPage: React.FC<OSDetailPageProps> = ({
                       </select>
                     </div>
 
+                    {/* Descrição */}
+                    <div className="sm:col-span-2">
+                      <label className="block font-medium mb-1 text-light-text dark:text-dark-text">
+                        Descrição do Material *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newMatDesc}
+                        onChange={(e) => setNewMatDesc(e.target.value)}
+                        placeholder="Ex: ACM Azul 3mm 5.00x1.22m ou LEDs 12V Branco Frio"
+                        className="w-full px-2.5 py-1.5 rounded border border-light-border dark:border-dark-border bg-light-card dark:bg-dark-card text-light-text dark:text-dark-text focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Quantidade / Unidade */}
                     <div>
                       <label className="block font-medium mb-1 text-light-text dark:text-dark-text">
                         Quantidade / Unidade
@@ -1026,85 +1173,440 @@ export const OSDetailPage: React.FC<OSDetailPageProps> = ({
                         />
                       </div>
                     </div>
+
+                    {/* Localização Estoque */}
+                    <div>
+                      <label className="block font-medium mb-1 text-light-text dark:text-dark-text">
+                        Localização no Estoque
+                      </label>
+                      <input
+                        type="text"
+                        value={newMatLoc}
+                        onChange={(e) => setNewMatLoc(e.target.value)}
+                        placeholder="Ex: Prateleira B-04"
+                        className="w-full px-2.5 py-1.5 rounded border border-light-border dark:border-dark-border bg-light-card dark:bg-dark-card text-light-text dark:text-dark-text focus:outline-none"
+                      />
+                    </div>
                   </div>
 
-                  <div className="flex justify-end gap-2 text-xs">
+                  <div className="flex justify-end gap-2 text-xs pt-1">
                     <button
                       type="button"
                       onClick={() => setShowAddMat(false)}
-                      className="px-3 py-1 rounded text-neutral-500 hover:text-black dark:hover:text-white"
+                      className="px-3 py-1.5 rounded text-neutral-500 hover:text-black dark:hover:text-white"
                     >
                       Cancelar
                     </button>
                     <button
                       type="submit"
-                      className="px-3 py-1 rounded bg-black text-white dark:bg-white dark:text-black font-semibold"
+                      className="px-3 py-1.5 rounded bg-black text-white dark:bg-white dark:text-black font-semibold"
                     >
-                      Salvar Material
+                      Salvar Insumo
                     </button>
                   </div>
                 </form>
               )}
 
-              {/* Tabela de Materiais */}
-              {(!order.materiais || order.materiais.length === 0) ? (
-                <div className="p-8 text-center text-xs text-neutral-400 border border-dashed border-light-border dark:border-dark-border rounded">
-                  Nenhum material listado para esta ordem de serviço.
-                </div>
-              ) : (
-                <div className="overflow-x-auto border border-light-border dark:border-dark-border rounded">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="border-b border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface font-mono-code text-[11px] text-light-muted dark:text-dark-muted">
-                        <th className="p-2.5">Descrição do Insumo</th>
-                        <th className="p-2.5">Categoria</th>
-                        <th className="p-2.5 text-center">Quantidade</th>
-                        <th className="p-2.5">Localização no Estoque</th>
-                        <th className="p-2.5">Status Separação</th>
-                        <th className="p-2.5 text-right">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-light-border dark:divide-dark-border">
-                      {order.materiais.map((mat) => (
-                        <tr key={mat.id} className="hover:bg-light-surface dark:hover:bg-dark-surface transition-colors">
-                          <td className="p-2.5 font-medium text-light-text dark:text-dark-text">
-                            {mat.descricao}
-                          </td>
-                          <td className="p-2.5 text-light-muted dark:text-dark-muted">
-                            <span className="font-mono-code text-[11px] uppercase">
-                              {mat.categoria}
+              {/* MODO 1: VISUALIZAÇÃO AGRUPADA POR PEÇA */}
+              {materialViewMode === 'grouped' && (
+                <div className="space-y-4">
+                  
+                  {/* Seções de Cada Peça da Obra */}
+                  {(order.itens_planta || [])
+                    .filter((item) => {
+                      if (materialFilterItem === 'todos') return true;
+                      if (materialFilterItem === 'geral') return false;
+                      return item.id === materialFilterItem;
+                    })
+                    .map((item) => {
+                      const itemMats = (order.materiais || []).filter((m) => m.item_planta_id === item.id);
+                      const sepCount = itemMats.filter((m) => m.status_separacao === 'separado').length;
+                      const hasDimensions = item.largura_mm || item.altura_mm || item.profundidade_mm;
+                      const dimStr = `${item.largura_mm || '-'} x ${item.altura_mm || '-'} x ${item.profundidade_mm || '-'} mm`;
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="border border-light-border dark:border-dark-border rounded-lg bg-light-surface/40 dark:bg-dark-surface/40 overflow-hidden"
+                        >
+                          {/* Cabeçalho da Peça */}
+                          <div className="p-3 bg-light-surface dark:bg-dark-surface border-b border-light-border dark:border-dark-border flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="font-mono-code font-bold text-xs px-2 py-0.5 rounded bg-black text-white dark:bg-white dark:text-black">
+                                {item.codigo}
+                              </span>
+                              <span className="font-bold text-xs text-light-text dark:text-dark-text truncate">
+                                {item.nome}
+                              </span>
+                              {item.ambiente && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded border border-light-border dark:border-dark-border bg-light-card dark:bg-dark-card text-light-muted dark:text-dark-muted">
+                                  {item.ambiente}
+                                </span>
+                              )}
+                              {hasDimensions && (
+                                <span className="font-mono-code text-[10px] text-light-muted dark:text-dark-muted hidden sm:inline">
+                                  {dimStr}
+                                </span>
+                              )}
+                              {item.material_principal && (
+                                <span className="text-[10px] text-light-muted dark:text-dark-muted italic hidden md:inline truncate max-w-[150px]">
+                                  • {item.material_principal}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="font-mono-code text-[11px] px-2 py-0.5 rounded border border-light-border dark:border-dark-border bg-light-card dark:bg-dark-card text-light-text dark:text-dark-text">
+                                {sepCount}/{itemMats.length} separados
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAddForPiece(item.id)}
+                                className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded bg-black text-white dark:bg-white dark:text-black hover:opacity-90 font-medium"
+                                title={`Destinar novo insumo especificamente para ${item.codigo}`}
+                              >
+                                <Plus className="w-3 h-3" />
+                                <span>+ Insumo p/ Peça</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Lista de Insumos da Peça */}
+                          {itemMats.length === 0 ? (
+                            <div className="p-4 text-center text-xs text-light-muted dark:text-dark-muted border-t border-dashed border-light-border dark:border-dark-border bg-light-card/40 dark:bg-dark-card/40">
+                              Nenhum insumo destinado para esta peça ainda.{' '}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAddForPiece(item.id)}
+                                className="text-black dark:text-white underline underline-offset-2 font-medium"
+                              >
+                                Clique aqui para destinar chapas, LEDs ou fitas.
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left text-xs border-collapse">
+                                <thead>
+                                  <tr className="border-b border-light-border dark:border-dark-border bg-light-card/60 dark:bg-dark-card/60 font-mono-code text-[10px] text-light-muted dark:text-dark-muted">
+                                    <th className="p-2.5">Descrição do Insumo</th>
+                                    <th className="p-2.5">Categoria</th>
+                                    <th className="p-2.5 text-center">Quantidade</th>
+                                    <th className="p-2.5">Estoque</th>
+                                    <th className="p-2.5">Status Separação</th>
+                                    <th className="p-2.5">Reatribuir Peça</th>
+                                    <th className="p-2.5 text-right">Ação</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-light-border dark:divide-dark-border bg-light-card dark:bg-dark-card">
+                                  {itemMats.map((mat) => (
+                                    <tr key={mat.id} className="hover:bg-light-surface/60 dark:hover:bg-dark-surface/60 transition-colors">
+                                      <td className="p-2.5 font-medium text-light-text dark:text-dark-text">
+                                        {mat.descricao}
+                                      </td>
+                                      <td className="p-2.5 text-light-muted dark:text-dark-muted">
+                                        <span className="font-mono-code text-[10px] uppercase">
+                                          {mat.categoria}
+                                        </span>
+                                      </td>
+                                      <td className="p-2.5 text-center font-mono-code">
+                                        {mat.quantidade} {mat.unidade}
+                                      </td>
+                                      <td className="p-2.5 text-light-muted dark:text-dark-muted">
+                                        {mat.localizacao_estoque || '-'}
+                                      </td>
+                                      <td className="p-2.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => onCycleMaterialStatus(order.id, mat.id)}
+                                          className="hover:opacity-80 transition-opacity"
+                                          title="Clique para alternar o status da separação"
+                                        >
+                                          <StatusSeparacaoBadge status={mat.status_separacao} />
+                                        </button>
+                                      </td>
+                                      <td className="p-2.5">
+                                        <select
+                                          value={mat.item_planta_id || ''}
+                                          onChange={(e) =>
+                                            onUpdateMaterial(order.id, mat.id, {
+                                              item_planta_id: e.target.value || undefined,
+                                            })
+                                          }
+                                          className="text-[11px] px-2 py-1 rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface text-light-text dark:text-dark-text focus:outline-none max-w-[160px] truncate"
+                                          title="Mudar o destino deste insumo"
+                                        >
+                                          <option value="">Geral da Obra</option>
+                                          {(order.itens_planta || []).map((it) => (
+                                            <option key={it.id} value={it.id}>
+                                              {it.codigo} - {it.nome}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </td>
+                                      <td className="p-2.5 text-right">
+                                        <button
+                                          type="button"
+                                          onClick={() => onRemoveMaterial(order.id, mat.id)}
+                                          className="p-1 rounded text-neutral-400 hover:text-red-600 transition-colors"
+                                          title="Remover material"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                  {/* Seção de Insumos Gerais da Obra */}
+                  {(materialFilterItem === 'todos' || materialFilterItem === 'geral') && (
+                    <div className="border border-light-border dark:border-dark-border rounded-lg bg-light-surface/40 dark:bg-dark-surface/40 overflow-hidden">
+                      <div className="p-3 bg-light-surface dark:bg-dark-surface border-b border-light-border dark:border-dark-border flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Box className="w-4 h-4 text-neutral-500" />
+                          <div>
+                            <span className="font-bold text-xs text-light-text dark:text-dark-text">
+                              Insumos Gerais da Obra
                             </span>
-                          </td>
-                          <td className="p-2.5 text-center font-mono-code">
-                            {mat.quantidade} {mat.unidade}
-                          </td>
-                          <td className="p-2.5 text-light-muted dark:text-dark-muted">
-                            {mat.localizacao_estoque || '-'}
-                          </td>
-                          <td className="p-2.5">
-                            <button
-                              type="button"
-                              onClick={() => onCycleMaterialStatus(order.id, mat.id)}
-                              className="hover:opacity-80 transition-opacity"
-                              title="Clique para alternar o status da separação"
-                            >
-                              <StatusSeparacaoBadge status={mat.status_separacao} />
-                            </button>
-                          </td>
-                          <td className="p-2.5 text-right">
-                            <button
-                              type="button"
-                              onClick={() => onRemoveMaterial(order.id, mat.id)}
-                              className="p-1 rounded text-neutral-400 hover:text-red-600 transition-colors"
-                              title="Remover material"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                            <span className="text-[11px] text-light-muted dark:text-dark-muted ml-2">
+                              (Chapas globais, parafusos, fitas e químicos compartilhados)
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {(() => {
+                            const generalMats = (order.materiais || []).filter(
+                              (m) => !m.item_planta_id || !(order.itens_planta || []).some((it) => it.id === m.item_planta_id)
+                            );
+                            const sepCount = generalMats.filter((m) => m.status_separacao === 'separado').length;
+
+                            return (
+                              <>
+                                <span className="font-mono-code text-[11px] px-2 py-0.5 rounded border border-light-border dark:border-dark-border bg-light-card dark:bg-dark-card text-light-text dark:text-dark-text">
+                                  {sepCount}/{generalMats.length} separados
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenAddForPiece('')}
+                                  className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded bg-black text-white dark:bg-white dark:text-black hover:opacity-90 font-medium"
+                                  title="Adicionar insumo geral para a obra"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  <span>+ Insumo Geral</span>
+                                </button>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+
+                      {(() => {
+                        const generalMats = (order.materiais || []).filter(
+                          (m) => !m.item_planta_id || !(order.itens_planta || []).some((it) => it.id === m.item_planta_id)
+                        );
+
+                        if (generalMats.length === 0) {
+                          return (
+                            <div className="p-4 text-center text-xs text-light-muted dark:text-dark-muted bg-light-card/40 dark:bg-dark-card/40">
+                              Nenhum insumo geral da obra cadastrado. Todos os materiais foram destinados a peças específicas ou nenhum foi cadastrado.
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead>
+                                <tr className="border-b border-light-border dark:border-dark-border bg-light-card/60 dark:bg-dark-card/60 font-mono-code text-[10px] text-light-muted dark:text-dark-muted">
+                                  <th className="p-2.5">Descrição do Insumo</th>
+                                  <th className="p-2.5">Categoria</th>
+                                  <th className="p-2.5 text-center">Quantidade</th>
+                                  <th className="p-2.5">Estoque</th>
+                                  <th className="p-2.5">Status Separação</th>
+                                  <th className="p-2.5">Destinar à Peça</th>
+                                  <th className="p-2.5 text-right">Ação</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-light-border dark:divide-dark-border bg-light-card dark:bg-dark-card">
+                                {generalMats.map((mat) => (
+                                  <tr key={mat.id} className="hover:bg-light-surface/60 dark:hover:bg-dark-surface/60 transition-colors">
+                                    <td className="p-2.5 font-medium text-light-text dark:text-dark-text">
+                                      {mat.descricao}
+                                    </td>
+                                    <td className="p-2.5 text-light-muted dark:text-dark-muted">
+                                      <span className="font-mono-code text-[10px] uppercase">
+                                        {mat.categoria}
+                                      </span>
+                                    </td>
+                                    <td className="p-2.5 text-center font-mono-code">
+                                      {mat.quantidade} {mat.unidade}
+                                    </td>
+                                    <td className="p-2.5 text-light-muted dark:text-dark-muted">
+                                      {mat.localizacao_estoque || '-'}
+                                    </td>
+                                    <td className="p-2.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => onCycleMaterialStatus(order.id, mat.id)}
+                                        className="hover:opacity-80 transition-opacity"
+                                        title="Clique para alternar o status da separação"
+                                      >
+                                        <StatusSeparacaoBadge status={mat.status_separacao} />
+                                      </button>
+                                    </td>
+                                    <td className="p-2.5">
+                                      <select
+                                        value={mat.item_planta_id || ''}
+                                        onChange={(e) =>
+                                          onUpdateMaterial(order.id, mat.id, {
+                                            item_planta_id: e.target.value || undefined,
+                                          })
+                                        }
+                                        className="text-[11px] px-2 py-1 rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface text-light-text dark:text-dark-text focus:outline-none max-w-[160px] truncate"
+                                        title="Alocar este insumo a uma peça específica"
+                                      >
+                                        <option value="">Geral da Obra</option>
+                                        {(order.itens_planta || []).map((it) => (
+                                          <option key={it.id} value={it.id}>
+                                            {it.codigo} - {it.nome}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </td>
+                                    <td className="p-2.5 text-right">
+                                      <button
+                                        type="button"
+                                        onClick={() => onRemoveMaterial(order.id, mat.id)}
+                                        className="p-1 rounded text-neutral-400 hover:text-red-600 transition-colors"
+                                        title="Remover material"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                </div>
+              )}
+
+              {/* MODO 2: VISUALIZAÇÃO EM TABELA COMPLETA COM DESTINO */}
+              {materialViewMode === 'list' && (
+                <div>
+                  {(() => {
+                    const displayedMats = (order.materiais || []).filter((m) => {
+                      if (materialFilterItem === 'todos') return true;
+                      if (materialFilterItem === 'geral') {
+                        return !m.item_planta_id || !(order.itens_planta || []).some((it) => it.id === m.item_planta_id);
+                      }
+                      return m.item_planta_id === materialFilterItem;
+                    });
+
+                    if (displayedMats.length === 0) {
+                      return (
+                        <div className="p-8 text-center text-xs text-neutral-400 border border-dashed border-light-border dark:border-dark-border rounded">
+                          Nenhum material encontrado com o filtro selecionado.
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="overflow-x-auto border border-light-border dark:border-dark-border rounded">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="border-b border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface font-mono-code text-[11px] text-light-muted dark:text-dark-muted">
+                              <th className="p-2.5">Descrição do Insumo</th>
+                              <th className="p-2.5">Categoria</th>
+                              <th className="p-2.5">Peça Destinada</th>
+                              <th className="p-2.5 text-center">Quantidade</th>
+                              <th className="p-2.5">Estoque</th>
+                              <th className="p-2.5">Status Separação</th>
+                              <th className="p-2.5 text-right">Ações</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-light-border dark:divide-dark-border">
+                            {displayedMats.map((mat) => {
+                              const assignedItem = (order.itens_planta || []).find((it) => it.id === mat.item_planta_id);
+
+                              return (
+                                <tr key={mat.id} className="hover:bg-light-surface dark:hover:bg-dark-surface transition-colors">
+                                  <td className="p-2.5 font-medium text-light-text dark:text-dark-text">
+                                    {mat.descricao}
+                                  </td>
+                                  <td className="p-2.5 text-light-muted dark:text-dark-muted">
+                                    <span className="font-mono-code text-[11px] uppercase">
+                                      {mat.categoria}
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5">
+                                    <select
+                                      value={mat.item_planta_id || ''}
+                                      onChange={(e) =>
+                                        onUpdateMaterial(order.id, mat.id, {
+                                          item_planta_id: e.target.value || undefined,
+                                        })
+                                      }
+                                      className={`text-[11px] font-mono-code px-2 py-1 rounded border transition-colors max-w-[200px] truncate ${
+                                        assignedItem
+                                          ? 'border-neutral-300 dark:border-neutral-700 bg-light-surface dark:bg-dark-surface text-light-text dark:text-dark-text font-semibold'
+                                          : 'border-light-border dark:border-dark-border bg-light-card dark:bg-dark-card text-light-muted dark:text-dark-muted'
+                                      }`}
+                                      title="Clique para reatribuir este insumo a outra peça da obra"
+                                    >
+                                      <option value="">Geral da Obra</option>
+                                      {(order.itens_planta || []).map((it) => (
+                                        <option key={it.id} value={it.id}>
+                                          {it.codigo} - {it.nome}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  <td className="p-2.5 text-center font-mono-code">
+                                    {mat.quantidade} {mat.unidade}
+                                  </td>
+                                  <td className="p-2.5 text-light-muted dark:text-dark-muted">
+                                    {mat.localizacao_estoque || '-'}
+                                  </td>
+                                  <td className="p-2.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => onCycleMaterialStatus(order.id, mat.id)}
+                                      className="hover:opacity-80 transition-opacity"
+                                      title="Clique para alternar o status da separação"
+                                    >
+                                      <StatusSeparacaoBadge status={mat.status_separacao} />
+                                    </button>
+                                  </td>
+                                  <td className="p-2.5 text-right">
+                                    <button
+                                      type="button"
+                                      onClick={() => onRemoveMaterial(order.id, mat.id)}
+                                      className="p-1 rounded text-neutral-400 hover:text-red-600 transition-colors"
+                                      title="Remover material"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 

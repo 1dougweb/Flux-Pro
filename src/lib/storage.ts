@@ -126,6 +126,7 @@ export const SEED_ORDERS: OrdemServico[] = [
       {
         id: 'mat-1-1',
         os_id: 'os-1',
+        item_planta_id: 'it-1-1',
         categoria: 'chapa',
         descricao: 'ACM Azul Brilhante 3mm (0.21) 5.00 x 1.22m',
         quantidade: 6,
@@ -137,6 +138,7 @@ export const SEED_ORDERS: OrdemServico[] = [
       {
         id: 'mat-1-2',
         os_id: 'os-1',
+        item_planta_id: 'it-1-2',
         categoria: 'chapa',
         descricao: 'Acrílico Cast Branco Leitoso 3mm 2.00 x 1.00m',
         quantidade: 2,
@@ -148,6 +150,7 @@ export const SEED_ORDERS: OrdemServico[] = [
       {
         id: 'mat-1-3',
         os_id: 'os-1',
+        item_planta_id: 'it-1-3',
         categoria: 'chapa',
         descricao: 'PVC Expandido 20mm 2.44 x 1.22m',
         quantidade: 1,
@@ -159,6 +162,7 @@ export const SEED_ORDERS: OrdemServico[] = [
       {
         id: 'mat-1-4',
         os_id: 'os-1',
+        item_planta_id: 'it-1-2',
         categoria: 'iluminacao',
         descricao: 'Módulo LED Injetado 12V 1.5W Branco Frio 6500K IP68 (Lente 160°)',
         quantidade: 180,
@@ -170,6 +174,7 @@ export const SEED_ORDERS: OrdemServico[] = [
       {
         id: 'mat-1-5',
         os_id: 'os-1',
+        item_planta_id: 'it-1-2',
         categoria: 'iluminacao',
         descricao: 'Fonte Chaveada Slim 12V 30A Bivolt Automática (Ventoinha Silenciosa)',
         quantidade: 2,
@@ -181,6 +186,7 @@ export const SEED_ORDERS: OrdemServico[] = [
       {
         id: 'mat-1-6',
         os_id: 'os-1',
+        item_planta_id: 'it-1-1',
         categoria: 'estrutura',
         descricao: 'Tubo de Aço Galvanizado 40 x 40 x 1.25mm (Barra 6 metros)',
         quantidade: 8,
@@ -192,6 +198,7 @@ export const SEED_ORDERS: OrdemServico[] = [
       {
         id: 'mat-1-7',
         os_id: 'os-1',
+        item_planta_id: 'it-1-1',
         categoria: 'fixacao_quimica',
         descricao: 'Selante PU 40 Estrutural Cinza (Tubo 400g)',
         quantidade: 6,
@@ -203,6 +210,7 @@ export const SEED_ORDERS: OrdemServico[] = [
       {
         id: 'mat-1-8',
         os_id: 'os-1',
+        item_planta_id: 'it-1-2',
         categoria: 'fixacao_quimica',
         descricao: 'Fita Dupla Face Estrutural VHB 3M 19mm x 20m',
         quantidade: 3,
@@ -678,6 +686,7 @@ export function normalizeOrder(order: OrdemServico): OrdemServico {
       ...mat,
       id: ensureValidUUID(mat.id),
       os_id: osId,
+      item_planta_id: mat.item_planta_id ? ensureValidUUID(mat.item_planta_id) : undefined,
       quantidade: Number(mat.quantidade || 1),
     })),
     historico: (order.historico || []).map((h) => ({
@@ -788,10 +797,17 @@ export async function saveOrderToSupabase(order: OrdemServico, client = getSupab
   // 4. Upsert e exclusão de Materiais
   if (materiais && materiais.length > 0) {
     for (const mat of materiais) {
-      const { error: matError } = await client.from('itens_material').upsert({
+      let matRow: any = {
         ...mat,
         os_id: normalized.id,
-      });
+      };
+      let { error: matError } = await client.from('itens_material').upsert(matRow);
+      if (matError && (matError.message.includes('item_planta_id') || matError.code === '42703')) {
+        console.warn('Coluna item_planta_id não encontrada em itens_material no Supabase. Retentando sem o campo...', matError.message);
+        delete matRow.item_planta_id;
+        const retry = await client.from('itens_material').upsert(matRow);
+        matError = retry.error;
+      }
       if (matError) {
         console.error('Erro no Supabase ao salvar itens_material:', matError);
       }

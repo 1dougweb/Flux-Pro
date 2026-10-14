@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS planos_corte (
 CREATE TABLE IF NOT EXISTS itens_material (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     os_id UUID NOT NULL REFERENCES ordens_servico(id) ON DELETE CASCADE,
+    item_planta_id UUID REFERENCES itens_planta(id) ON DELETE SET NULL,
     categoria VARCHAR(30) NOT NULL,
     descricao VARCHAR(200) NOT NULL,
     quantidade NUMERIC(10, 2) NOT NULL DEFAULT 1.00,
@@ -174,6 +175,7 @@ ALTER TABLE itens_material ADD CONSTRAINT itens_material_categoria_check CHECK (
         'outro'
     )
 );
+ALTER TABLE itens_material ADD COLUMN IF NOT EXISTS item_planta_id UUID REFERENCES itens_planta(id) ON DELETE SET NULL;
 
 -- ============================================================
 -- SECAO 3: INDICES PARA ALTA PERFORMANCE

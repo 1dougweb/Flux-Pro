@@ -92,6 +92,7 @@ export interface PlanoCorte {
 export interface ItemMaterial {
   id: string;
   os_id: string;
+  item_planta_id?: string; // ID da peça/elemento da OS destinada a este insumo
   categoria: CategoriaMaterial;
   descricao: string;
   quantidade: number;

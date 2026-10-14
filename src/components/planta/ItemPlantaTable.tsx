@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ItemPlanta, StatusItemObra } from '../../types';
+import { ItemPlanta, StatusItemObra, ItemMaterial } from '../../types';
 import {
   StatusItemObraBadge,
   StatusCorteItemBadge,
@@ -29,6 +29,7 @@ import {
   Upload,
   Download,
   AlertTriangle,
+  Package,
 } from 'lucide-react';
 
 export interface ItemPlantaDisplay extends ItemPlanta {
@@ -41,6 +42,8 @@ interface ItemPlantaTableProps {
   osId?: string; // Se fornecido, opera no contexto daquela OS
   osAmbientes?: string[]; // Ambientes definidos na OS para correspondência
   itens: ItemPlantaDisplay[];
+  materiais?: ItemMaterial[]; // Lista de materiais da OS para vincular progresso à peça
+  onNavigateToMateriais?: (itemId?: string) => void;
   onAddItem?: (
     osId: string,
     item: Omit<ItemPlanta, 'id' | 'os_id' | 'created_at'>
@@ -60,6 +63,8 @@ export const ItemPlantaTable: React.FC<ItemPlantaTableProps> = ({
   osId,
   osAmbientes = [],
   itens,
+  materiais,
+  onNavigateToMateriais,
   onAddItem,
   onUpdateItem,
   onRemoveItem,
@@ -379,6 +384,49 @@ export const ItemPlantaTable: React.FC<ItemPlantaTableProps> = ({
                         <p className="text-[10px] text-light-muted dark:text-dark-muted max-w-xs truncate mt-0.5">
                           {item.observacoes}
                         </p>
+                      )}
+
+                      {/* Insumos destinados a esta peça */}
+                      {materiais && (
+                        <div className="mt-1 flex items-center gap-1.5">
+                          {(() => {
+                            const itemMats = materiais.filter((m) => m.item_planta_id === item.id);
+                            const total = itemMats.length;
+                            const sep = itemMats.filter((m) => m.status_separacao === 'separado').length;
+                            const allDone = total > 0 && sep === total;
+
+                            if (total === 0) {
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => onNavigateToMateriais && onNavigateToMateriais(item.id)}
+                                  className="inline-flex items-center gap-1 text-[10px] text-neutral-400 hover:text-black dark:hover:text-white transition-colors"
+                                  title="Clique para destinar materiais a esta peça"
+                                >
+                                  <Package className="w-3 h-3 text-neutral-400" />
+                                  <span>0 insumos (+ Vincular)</span>
+                                </button>
+                              );
+                            }
+
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => onNavigateToMateriais && onNavigateToMateriais(item.id)}
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono-code border transition-colors ${
+                                  allDone
+                                    ? 'border-neutral-400 bg-neutral-200/60 dark:border-neutral-700 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 font-semibold'
+                                    : 'border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface text-light-muted dark:text-dark-muted hover:text-black dark:hover:text-white hover:border-black dark:hover:border-white'
+                                }`}
+                                title={`Ver materiais de ${item.codigo}: ${sep}/${total} separados. Clique para abrir.`}
+                              >
+                                <Package className="w-3 h-3" />
+                                <span>{total} {total === 1 ? 'insumo' : 'insumos'}</span>
+                                <span className="text-[9px] opacity-75 font-normal">({sep}/{total} sep.)</span>
+                              </button>
+                            );
+                          })()}
+                        </div>
                       )}
                     </td>
 
