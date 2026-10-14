@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { OrdemServico, ItemPlanta } from '../../types';
 import { OSStatusBadge, OSPrioridadeBadge, StatusCorteBadge, TagBadge, AmbienteBadge } from '../common/Badge';
+import { areTagsEqual } from '../../lib/tags';
 import { DeliveryCountdown } from '../common/DeliveryCountdown';
 import { MaterialProgressBar } from '../materials/MaterialProgressBar';
 import { ItemPlantaTable } from '../planta/ItemPlantaTable';
@@ -149,10 +150,10 @@ export const OSList: React.FC<OSListProps> = ({
                       <TagBadge
                         key={t}
                         tag={t}
-                        selected={selectedTag === t}
+                        selected={Boolean(selectedTag && areTagsEqual(selectedTag, t))}
                         onClick={
                           onSelectTag
-                            ? () => onSelectTag(selectedTag === t ? '' : t)
+                            ? () => onSelectTag(selectedTag && areTagsEqual(selectedTag, t) ? '' : t)
                             : undefined
                         }
                       />

@@ -19,7 +19,7 @@ export const SEED_ORDERS: OrdemServico[] = [
     previsao_entrega: '2026-10-18', // 4 dias
     observacoes: 'Fachada com 14 metros lineares. Subestrutura em tubos galvanizados 40x40. Iluminação frontal em LED Branco Frio 6500K com 2 fontes 12V 30A.',
     valor_total: 28500.0,
-    tags: ['Fachada ACM', 'Letra Caixa', 'LED 12V', 'Router CNC'],
+    tags: ['Fachada ACM::black', 'Letra Caixa::purple', 'LED 12V::pink', 'Router CNC::blue'],
     created_at: '2026-10-10T09:00:00Z',
     updated_at: '2026-10-14T08:00:00Z',
     plano_corte: {
@@ -245,7 +245,7 @@ export const SEED_ORDERS: OrdemServico[] = [
     previsao_entrega: '2026-10-21', // 7 dias
     observacoes: 'Totem externo chumbado em base de concreto com 4 sapatas. Revestimento em ACM Grafite e letras em acrílico com iluminação interna.',
     valor_total: 34000.0,
-    tags: ['Totem', 'Acrílico', 'Sinalização', 'Braille'],
+    tags: ['Totem::blue', 'Acrílico::sky', 'Sinalização::yellow', 'Braille::green'],
     created_at: '2026-10-08T11:00:00Z',
     updated_at: '2026-10-13T16:00:00Z',
     plano_corte: {
@@ -380,7 +380,7 @@ export const SEED_ORDERS: OrdemServico[] = [
     previsao_entrega: '2026-10-24', // 10 dias
     observacoes: 'Pórtico metálico com ACM Vermelho e letreiro estilo neon flex em silicone 12V.',
     valor_total: 16200.0,
-    tags: ['Neon LED', 'Router CNC', 'Fachada'],
+    tags: ['Neon LED::pink', 'Router CNC::blue', 'Fachada::black'],
     created_at: '2026-10-05T08:00:00Z',
     updated_at: '2026-10-14T07:30:00Z',
     plano_corte: {
@@ -460,7 +460,7 @@ export const SEED_ORDERS: OrdemServico[] = [
     previsao_entrega: '2026-10-13', // Atrasado 1 dia
     observacoes: 'URGENTE: Inauguração da academia marcada. Falta finalizar o nesting do ACM Preto Brilho e mandar cortar as letras na máquina Laser.',
     valor_total: 21900.0,
-    tags: ['Fachada ACM', 'Inox Dourado', 'Laser', 'Urgente'],
+    tags: ['Urgente::red', 'Fachada ACM::black', 'Inox Dourado::orange', 'Laser::sky'],
     created_at: '2026-10-01T14:00:00Z',
     updated_at: '2026-10-14T08:15:00Z',
     plano_corte: {
@@ -531,7 +531,7 @@ export const SEED_ORDERS: OrdemServico[] = [
     data_inicio: '2026-10-12',
     previsao_entrega: '2026-10-28',
     valor_total: 8900.0,
-    tags: ['Adesivagem', 'Shopping', 'Plotter Recorte'],
+    tags: ['Adesivagem::lime', 'Shopping::purple', 'Plotter Recorte::blue'],
     created_at: '2026-10-12T10:00:00Z',
     updated_at: '2026-10-12T10:00:00Z',
     plano_corte: {

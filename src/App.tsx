@@ -60,6 +60,7 @@ export function App() {
     cycleMaterialStatus,
     changeOSStatus,
     refreshOrders,
+    toggleTagOnOrder,
   } = useOrders();
 
   const {
@@ -215,6 +216,8 @@ export function App() {
             onCycleMaterialStatus={cycleMaterialStatus}
             onChangeStatus={changeOSStatus}
             onUpdateOrder={updateOrder}
+            allTags={allTags}
+            onToggleTag={toggleTagOnOrder}
           />
         ) : (
           <>
@@ -312,6 +315,8 @@ export function App() {
                     onChangeStatus={changeOSStatus}
                     selectedTag={selectedTag}
                     onSelectTag={(tag) => setSelectedTag(tag === selectedTag ? null : tag)}
+                    allTags={allTags}
+                    onToggleTag={toggleTagOnOrder}
                   />
                 ) : (
                   <OSList

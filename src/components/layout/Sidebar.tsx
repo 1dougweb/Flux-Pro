@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { ViewFilter } from '../../types';
 import { TagBadge } from '../common/Badge';
+import { areTagsEqual } from '../../lib/tags';
 
 interface SidebarProps {
   currentFilter: ViewFilter;
@@ -164,7 +165,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ) : (
           <div className="flex flex-wrap gap-1.5 px-1">
             {allTags.map((tag) => {
-              const isSelected = selectedTag === tag;
+              const isSelected = Boolean(selectedTag && areTagsEqual(selectedTag, tag));
               return (
                 <TagBadge
                   key={tag}

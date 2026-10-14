@@ -3,6 +3,8 @@ import { OrdemServico, OSStatus, TipoMaquinaCorte } from '../../types';
 import { DeliveryCountdown } from '../common/DeliveryCountdown';
 import { MaterialProgressBar } from '../materials/MaterialProgressBar';
 import { StatusCorteBadge, TagBadge, AmbienteBadge } from '../common/Badge';
+import { TagManagerModal } from '../tags/TagManagerModal';
+import { areTagsEqual } from '../../lib/tags';
 import {
   ChevronRight,
   ChevronLeft,
@@ -18,6 +20,8 @@ import {
   Sparkles,
   AlertTriangle,
   MapPin,
+  Plus,
+  Tag as TagIcon,
 } from 'lucide-react';
 
 interface OSKanbanProps {
@@ -28,6 +32,8 @@ interface OSKanbanProps {
   onSelectTag?: (tag: string) => void;
   selectedAmbientes?: string[];
   onToggleAmbiente?: (ambiente: string) => void;
+  allTags?: string[];
+  onToggleTag?: (osId: string, tag: string) => void;
 }
 
 interface ColumnDef {
@@ -78,10 +84,13 @@ export const OSKanban: React.FC<OSKanbanProps> = ({
   onSelectTag,
   selectedAmbientes = [],
   onToggleAmbiente,
+  allTags = [],
+  onToggleTag,
 }) => {
   const [draggedOrderId, setDraggedOrderId] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<OSStatus | null>(null);
   const [quickMoveOpenId, setQuickMoveOpenId] = useState<string | null>(null);
+  const [tagModalOrder, setTagModalOrder] = useState<OrdemServico | null>(null);
 
   const draggedOrder = orders.find((o) => o.id === draggedOrderId);
 
@@ -395,23 +404,37 @@ export const OSKanban: React.FC<OSKanbanProps> = ({
                         </div>
                       )}
 
-                      {/* Tags do Projeto (Comunicação Visual) */}
-                      {order.tags && order.tags.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1 mb-2.5">
-                          {order.tags.map((t) => (
+                      {/* Tags do Projeto (Estilo Trello com Cores Vivas) */}
+                      <div className="flex flex-wrap items-center gap-1 mb-2.5">
+                        {order.tags &&
+                          order.tags.map((t) => (
                             <TagBadge
                               key={t}
                               tag={t}
-                              selected={selectedTag === t}
+                              selected={Boolean(selectedTag && areTagsEqual(selectedTag, t))}
                               onClick={
                                 onSelectTag
-                                  ? () => onSelectTag(selectedTag === t ? '' : t)
+                                  ? () => onSelectTag(selectedTag && areTagsEqual(selectedTag, t) ? '' : t)
                                   : undefined
                               }
                             />
                           ))}
-                        </div>
-                      )}
+
+                        {/* Botão de Adicionar/Gerenciar Etiquetas no Card */}
+                        {onToggleTag && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setTagModalOrder(order);
+                            }}
+                            className="inline-flex items-center justify-center h-4 px-1 rounded border border-dashed border-light-border dark:border-dark-border hover:border-black dark:hover:border-white text-neutral-400 hover:text-black dark:hover:text-white transition-colors"
+                            title="Gerenciar etiquetas desta OS"
+                          >
+                            <Plus className="w-2.5 h-2.5" />
+                          </button>
+                        )}
+                      </div>
 
                       {/* Itens da Planta e Status de Corte */}
                       <div className="grid grid-cols-2 gap-1.5 mb-2.5 text-[10px]">
@@ -546,6 +569,20 @@ export const OSKanban: React.FC<OSKanbanProps> = ({
           );
         })}
       </div>
+
+      {/* Modal de Gestão de Etiquetas Trello */}
+      {tagModalOrder && onToggleTag && (
+        <TagManagerModal
+          isOpen={Boolean(tagModalOrder)}
+          onClose={() => setTagModalOrder(null)}
+          selectedTags={
+            orders.find((o) => o.id === tagModalOrder.id)?.tags || tagModalOrder.tags || []
+          }
+          allExistingTags={allTags}
+          projectTitle={`${tagModalOrder.numero_os} - ${tagModalOrder.cliente}`}
+          onToggleTag={(tag) => onToggleTag(tagModalOrder.id, tag)}
+        />
+      )}
     </div>
   );
 };

@@ -21,6 +21,8 @@ import { DeliveryCountdown } from '../common/DeliveryCountdown';
 import { MaterialProgressBar } from '../materials/MaterialProgressBar';
 import { ItemPlantaTable } from '../planta/ItemPlantaTable';
 import { OSEditModal } from './OSEditModal';
+import { TagManagerModal } from '../tags/TagManagerModal';
+import { areTagsEqual } from '../../lib/tags';
 import {
   ArrowLeft,
   Pencil,
@@ -45,6 +47,7 @@ import {
   Phone,
   User,
   Calendar,
+  Tag as TagIcon,
 } from 'lucide-react';
 
 interface OSDetailPageProps {
@@ -75,6 +78,8 @@ interface OSDetailPageProps {
   onCycleMaterialStatus: (osId: string, matId: string) => Promise<void>;
   onChangeStatus: (osId: string, newStatus: OSStatus) => Promise<void>;
   onUpdateOrder: (updated: OrdemServico) => Promise<void>;
+  allTags?: string[];
+  onToggleTag?: (osId: string, tag: string) => Promise<void>;
 }
 
 export const OSDetailPage: React.FC<OSDetailPageProps> = ({
@@ -91,9 +96,12 @@ export const OSDetailPage: React.FC<OSDetailPageProps> = ({
   onCycleMaterialStatus,
   onChangeStatus,
   onUpdateOrder,
+  allTags = [],
+  onToggleTag,
 }) => {
   const [activeTab, setActiveTab] = useState<'itens' | 'corte' | 'materiais' | 'historico'>('itens');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isTagModalOpen, setIsTagModalOpen] = useState(false);
 
   // Filtro interno de Ambientes desta Obra (Multi-select simultâneo)
   const [selectedAmbientes, setSelectedAmbientes] = useState<string[]>([]);
@@ -382,14 +390,24 @@ export const OSDetailPage: React.FC<OSDetailPageProps> = ({
               )}
             </div>
 
-            {/* Tags da OS */}
-            {order.tags && order.tags.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1 pt-1">
-                {order.tags.map((t) => (
-                  <TagBadge key={t} tag={t} />
+            {/* Tags da OS no Estilo Trello com Cores Vivas */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1.5">
+              {order.tags &&
+                order.tags.map((t) => (
+                  <TagBadge key={t} tag={t} size="sm" />
                 ))}
-              </div>
-            )}
+
+              {/* Botão de Adicionar/Gerenciar Etiquetas no Projeto */}
+              <button
+                type="button"
+                onClick={() => setIsTagModalOpen(true)}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border border-dashed border-light-border dark:border-dark-border hover:border-black dark:hover:border-white text-light-text dark:text-dark-text bg-light-surface dark:bg-dark-surface transition-colors"
+                title="Adicionar ou alterar etiquetas coloridas nesta obra"
+              >
+                <TagIcon className="w-3 h-3 text-neutral-500" />
+                <span>+ Etiqueta</span>
+              </button>
+            </div>
           </div>
 
           {/* Resumo Rápido de Corte e Separação */}
@@ -1141,6 +1159,29 @@ export const OSDetailPage: React.FC<OSDetailPageProps> = ({
           order={order}
           onClose={() => setIsEditModalOpen(false)}
           onSave={onUpdateOrder}
+        />
+      )}
+
+      {/* Modal de Gestão de Etiquetas Trello */}
+      {isTagModalOpen && (
+        <TagManagerModal
+          isOpen={isTagModalOpen}
+          onClose={() => setIsTagModalOpen(false)}
+          selectedTags={order.tags || []}
+          allExistingTags={allTags}
+          projectTitle={`${order.numero_os} - ${order.cliente}`}
+          onToggleTag={async (tag) => {
+            if (onToggleTag) {
+              await onToggleTag(order.id, tag);
+            } else {
+              const current = order.tags || [];
+              const exists = current.some((t) => areTagsEqual(t, tag));
+              const next = exists
+                ? current.filter((t) => !areTagsEqual(t, tag))
+                : [...current, tag];
+              await onUpdateOrder({ ...order, tags: next });
+            }
+          }}
         />
       )}
 

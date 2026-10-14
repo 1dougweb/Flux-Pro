@@ -1,7 +1,15 @@
 import React, { useState } from 'react';
-import { OrdemServico, OSStatus, OSPrioridade, SUGESTOES_TAGS_CV, SUGESTOES_AMBIENTES_CV } from '../../types';
-import { X, Plus, Calendar, AlertCircle, Tag, MapPin } from 'lucide-react';
+import { OrdemServico, OSStatus, OSPrioridade, SUGESTOES_AMBIENTES_CV } from '../../types';
+import { X, Plus, Calendar, AlertCircle, Tag, MapPin, Check } from 'lucide-react';
 import { TagBadge, AmbienteBadge } from '../common/Badge';
+import {
+  TagColor,
+  TAG_COLORS,
+  TAG_COLORS_CONFIG,
+  DEFAULT_TRELLO_TAGS,
+  formatTag,
+  areTagsEqual,
+} from '../../lib/tags';
 
 interface OSFormModalProps {
   onClose: () => void;
@@ -36,6 +44,7 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({
   const [previsaoEntrega, setPrevisaoEntrega] = useState(defaultDeliveryStr);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
+  const [tagColor, setTagColor] = useState<TagColor>('blue');
   const [observacoes, setObservacoes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -51,16 +60,24 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({
     setAmbientes(ambientes.filter((a) => a !== ambToRemove));
   };
 
-  const handleAddTag = (tagToAdd: string) => {
-    const clean = tagToAdd.trim();
-    if (!clean) return;
-    if (tags.includes(clean)) return;
-    setTags([...tags, clean]);
+  const handleAddCustomTag = (name: string, color: TagColor) => {
+    const clean = name.trim();
+    const formatted = formatTag(clean, color);
+    if (tags.some((t) => areTagsEqual(t, formatted))) return;
+    setTags([...tags, formatted]);
     setTagInput('');
   };
 
+  const handleToggleTag = (tagFormatted: string) => {
+    if (tags.some((t) => areTagsEqual(t, tagFormatted))) {
+      setTags(tags.filter((t) => !areTagsEqual(t, tagFormatted)));
+    } else {
+      setTags([...tags, tagFormatted]);
+    }
+  };
+
   const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter((t) => t !== tagToRemove));
+    setTags(tags.filter((t) => !areTagsEqual(t, tagToRemove)));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -312,17 +329,18 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({
             </div>
 
             {/* Tags do Projeto */}
+            {/* Tags e Etiquetas do Projeto (Estilo Trello com Cores Vivas) */}
             <div className="sm:col-span-2 pt-1 border-t border-light-border dark:border-dark-border">
               <label className="block text-xs font-semibold mb-1 text-light-text dark:text-dark-text flex items-center gap-1.5">
                 <Tag className="w-3.5 h-3.5 text-neutral-500" />
-                <span>Tags do Projeto (Comunicação Visual)</span>
+                <span>Etiquetas Visuais do Projeto (Cores e Alertas Trello)</span>
               </label>
 
               {/* Tags ativas */}
               <div className="flex flex-wrap items-center gap-1.5 min-h-[32px] p-2 rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface mb-2">
                 {tags.length === 0 ? (
                   <span className="text-[11px] text-neutral-400 dark:text-neutral-500 italic">
-                    Nenhuma tag adicionada. Escolha uma sugestão rápida ou digite uma nova.
+                    Nenhuma etiqueta adicionada. Selecione uma das opções abaixo ou crie com cor personalizada.
                   </span>
                 ) : (
                   tags.map((t) => (
@@ -335,54 +353,91 @@ export const OSFormModal: React.FC<OSFormModalProps> = ({
                 )}
               </div>
 
-              {/* Input para adicionar nova tag */}
-              <div className="flex items-center gap-1.5 mb-2">
-                <input
-                  type="text"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddTag(tagInput);
-                    }
-                  }}
-                  placeholder="Digitar tag personalizada e teclar Enter..."
-                  className="flex-1 px-3 py-1.5 text-xs rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface text-light-text dark:text-dark-text focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleAddTag(tagInput)}
-                  className="px-2.5 py-1.5 text-xs font-semibold rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface hover:bg-neutral-200 dark:hover:bg-neutral-800 text-light-text dark:text-dark-text inline-flex items-center gap-1"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Adicionar</span>
-                </button>
+              {/* Sugestões Rápidas de Etiquetas com Cores Vivas (Trello) */}
+              <div className="mb-2.5">
+                <span className="text-[10px] font-semibold text-neutral-400 block mb-1">
+                  Etiquetas Rápidas de Comunicação Visual (Clique para alternar):
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {DEFAULT_TRELLO_TAGS.map((sug) => {
+                    const formatted = formatTag(sug.name, sug.color);
+                    const isAdded = tags.some((t) => areTagsEqual(t, formatted));
+                    const cfg = TAG_COLORS_CONFIG[sug.color];
+
+                    return (
+                      <button
+                        key={sug.name}
+                        type="button"
+                        onClick={() => handleToggleTag(formatted)}
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded border transition-all flex items-center gap-1 shadow-xs select-none ${
+                          isAdded
+                            ? `${cfg.bgClass} ${cfg.borderClass} ${cfg.textClass} ring-1 ring-black dark:ring-white scale-105`
+                            : 'bg-light-card dark:bg-dark-card border-light-border dark:border-dark-border text-neutral-600 dark:text-neutral-300 hover:border-black dark:hover:border-white opacity-85'
+                        }`}
+                      >
+                        <span
+                          className={`w-2 h-2 rounded-full ${cfg.bgClass} shrink-0`}
+                        />
+                        <span>{sug.name}</span>
+                        {isAdded && <Check className="w-2.5 h-2.5 stroke-[3] ml-0.5" />}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Sugestões rápidas de tags de CV */}
-              <div className="flex flex-wrap items-center gap-1 pt-1">
-                <span className="text-[10px] uppercase font-mono-code text-neutral-400 dark:text-neutral-500 mr-1">
-                  Sugestões:
+              {/* Criar Etiqueta com Cor Personalizada */}
+              <div className="p-2 rounded border border-light-border dark:border-dark-border bg-light-surface/60 dark:bg-dark-surface/60">
+                <span className="text-[10px] font-semibold text-light-text dark:text-dark-text block mb-1">
+                  Criar Etiqueta com Cor Personalizada:
                 </span>
-                {SUGESTOES_TAGS_CV.map((sug) => {
-                  const already = tags.includes(sug);
-                  return (
-                    <button
-                      key={sug}
-                      type="button"
-                      disabled={already}
-                      onClick={() => handleAddTag(sug)}
-                      className={`text-[10px] font-mono-code px-1.5 py-0.5 rounded border transition-colors ${
-                        already
-                          ? 'opacity-40 border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-400 cursor-not-allowed'
-                          : 'border-light-border dark:border-dark-border bg-light-card dark:bg-dark-card text-light-text dark:text-dark-text hover:border-black dark:hover:border-white'
-                      }`}
-                    >
-                      +{sug}
-                    </button>
-                  );
-                })}
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (tagInput.trim()) handleAddCustomTag(tagInput, tagColor);
+                      }
+                    }}
+                    placeholder="Nome da etiqueta personalizada..."
+                    className="flex-1 px-3 py-1.5 text-xs rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface text-light-text dark:text-dark-text focus:outline-none"
+                  />
+
+                  {/* Seletor de Cor */}
+                  <div className="flex items-center gap-1 justify-between sm:justify-start">
+                    {TAG_COLORS.map((col) => {
+                      const cfg = TAG_COLORS_CONFIG[col];
+                      const isSel = tagColor === col;
+                      return (
+                        <button
+                          key={col}
+                          type="button"
+                          onClick={() => setTagColor(col)}
+                          title={cfg.label}
+                          className={`w-5 h-5 rounded transition-transform ${cfg.bgClass} ${
+                            isSel
+                              ? 'ring-2 ring-black dark:ring-white scale-110'
+                              : 'opacity-70 hover:opacity-100 hover:scale-105'
+                          }`}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (tagInput.trim()) handleAddCustomTag(tagInput, tagColor);
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold rounded bg-neutral-200 dark:bg-neutral-800 text-light-text dark:text-dark-text hover:bg-neutral-300 dark:hover:bg-neutral-700 transition-colors shrink-0"
+                  >
+                    Adicionar
+                  </button>
+                </div>
               </div>
             </div>
 

@@ -8,6 +8,7 @@ import {
   StatusItemObra,
   TipoMaquinaCorte,
 } from '../../types';
+import { parseTag, TAG_COLORS_CONFIG } from '../../lib/tags';
 
 interface BadgeProps {
   children: React.ReactNode;
@@ -189,19 +190,44 @@ export const TagBadge: React.FC<{
   onRemove?: () => void;
   onClick?: () => void;
   selected?: boolean;
-}> = ({ tag, onRemove, onClick, selected }) => {
+  size?: 'sm' | 'md';
+}> = ({ tag, onRemove, onClick, selected, size = 'sm' }) => {
+  const parsed = parseTag(tag);
+  const colorCfg = TAG_COLORS_CONFIG[parsed.color] || TAG_COLORS_CONFIG.black;
+
+  // Se a etiqueta não tiver nome, exibe apenas a barra colorida no estilo Trello
+  if (!parsed.name) {
+    return (
+      <span
+        onClick={onClick}
+        title={colorCfg.label}
+        className={`inline-block ${colorCfg.bgClass} rounded transition-all select-none ${
+          size === 'sm' ? 'w-8 h-2.5 sm:h-3' : 'w-10 h-3.5'
+        } ${onClick ? 'cursor-pointer hover:opacity-90 active:scale-95' : ''} ${
+          selected ? 'ring-2 ring-black dark:ring-white ring-offset-1' : ''
+        }`}
+      />
+    );
+  }
+
   return (
     <span
       onClick={onClick}
-      className={`inline-flex items-center gap-1 text-[10px] font-mono-code px-1.5 py-0.5 rounded border transition-colors select-none ${
-        onClick ? 'cursor-pointer' : ''
+      className={`inline-flex items-center gap-1.5 font-sans rounded border transition-all select-none shadow-sm ${
+        colorCfg.bgClass
+      } ${colorCfg.borderClass} ${colorCfg.textClass} ${
+        size === 'sm'
+          ? 'text-[10px] font-bold px-2 py-0.5 leading-tight'
+          : 'text-xs font-bold px-2.5 py-1 leading-snug'
       } ${
-        selected
-          ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white font-bold'
-          : 'bg-light-surface dark:bg-dark-surface border-light-border dark:border-dark-border text-light-text dark:text-dark-text hover:border-black dark:hover:border-white'
+        onClick
+          ? 'cursor-pointer hover:brightness-110 active:scale-95'
+          : ''
+      } ${
+        selected ? 'ring-2 ring-black dark:ring-white ring-offset-1' : ''
       }`}
     >
-      <span>#{tag}</span>
+      <span className="truncate max-w-[180px]">{parsed.name}</span>
       {onRemove && (
         <button
           type="button"
@@ -209,8 +235,8 @@ export const TagBadge: React.FC<{
             e.stopPropagation();
             onRemove();
           }}
-          className="hover:opacity-75 text-neutral-400 hover:text-black dark:hover:text-white ml-0.5"
-          title="Remover tag"
+          className="opacity-70 hover:opacity-100 transition-opacity ml-0.5 leading-none font-bold"
+          title="Remover etiqueta"
         >
           &times;
         </button>
@@ -218,6 +244,7 @@ export const TagBadge: React.FC<{
     </span>
   );
 };
+
 
 export const AmbienteBadge: React.FC<{
   ambiente: string;

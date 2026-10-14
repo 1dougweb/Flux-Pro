@@ -11,6 +11,7 @@ import {
   HistoricoOS,
 } from '../types';
 import { fetchAllOrders, saveOrder, deleteOrder as apiDeleteOrder, generateUUID, getOrderAmbientes } from '../lib/storage';
+import { areTagsEqual, parseTag } from '../lib/tags';
 
 export interface ItemPlantaWithOS extends ItemPlanta {
   os_numero: string;
@@ -191,7 +192,7 @@ export function useOrders() {
     return orders.filter((order) => {
       // Filtro por Tag selecionada
       if (selectedTag) {
-        if (!order.tags || !order.tags.includes(selectedTag)) {
+        if (!order.tags || !order.tags.some((t) => areTagsEqual(t, selectedTag))) {
           return false;
         }
       }
@@ -213,7 +214,10 @@ export function useOrders() {
         const matchAmbiente =
           order.ambiente?.toLowerCase().includes(q) ||
           order.ambientes?.some((a) => a.toLowerCase().includes(q));
-        const matchTags = order.tags?.some((t) => t.toLowerCase().includes(q));
+        const matchTags = order.tags?.some((t) => {
+          const parsed = parseTag(t);
+          return parsed.name.toLowerCase().includes(q) || t.toLowerCase().includes(q);
+        });
         const matchItens = order.itens_planta?.some(
           (it) =>
             it.codigo.toLowerCase().includes(q) ||
@@ -589,7 +593,26 @@ export function useOrders() {
     if (!target || !target.tags) return;
     const updated: OrdemServico = {
       ...target,
-      tags: target.tags.filter((t) => t !== tag),
+      tags: target.tags.filter((t) => !areTagsEqual(t, tag)),
+      updated_at: new Date().toISOString(),
+    };
+    await updateOrderData(updated);
+  };
+
+  const toggleTagOnOrder = async (osId: string, tag: string) => {
+    const clean = tag.trim();
+    if (!clean) return;
+    const target = orders.find((o) => o.id === osId);
+    if (!target) return;
+    const currentTags = target.tags || [];
+    const exists = currentTags.some((t) => areTagsEqual(t, clean));
+    const nextTags = exists
+      ? currentTags.filter((t) => !areTagsEqual(t, clean))
+      : [...currentTags, clean];
+
+    const updated: OrdemServico = {
+      ...target,
+      tags: nextTags,
       updated_at: new Date().toISOString(),
     };
     await updateOrderData(updated);
@@ -618,6 +641,7 @@ export function useOrders() {
     allAmbientes,
     addTagToOrder,
     removeTagFromOrder,
+    toggleTagOnOrder,
     isLoading,
     dataSource,
     syncError,
