@@ -71,7 +71,6 @@ export function App() {
     signInWithEmail,
     signUpWithEmail,
     signInWithGoogle,
-    signInWithGithub,
     sendPasswordResetEmail,
     updatePassword,
     signOut,
@@ -125,7 +124,6 @@ export function App() {
           onSignInWithEmail={signInWithEmail}
           onSignUpWithEmail={signUpWithEmail}
           onSignInWithGoogle={signInWithGoogle}
-          onSignInWithGithub={signInWithGithub}
           onSendPasswordReset={sendPasswordResetEmail}
           onUpdatePassword={updatePassword}
           isSupabaseConfigured={isSupabaseConfigured}
@@ -384,7 +382,6 @@ export function App() {
         onSignInWithEmail={signInWithEmail}
         onSignUpWithEmail={signUpWithEmail}
         onSignInWithGoogle={signInWithGoogle}
-        onSignInWithGithub={signInWithGithub}
         onSendPasswordReset={sendPasswordResetEmail}
         onUpdatePassword={updatePassword}
         isSupabaseConfigured={isSupabaseConfigured}
