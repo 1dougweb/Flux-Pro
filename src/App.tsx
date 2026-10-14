@@ -11,6 +11,7 @@ import { OSDetailPage } from './components/os/OSDetailPage';
 import { OSFormModal } from './components/os/OSFormModal';
 import { SupabaseModal } from './components/settings/SupabaseModal';
 import { AuthModal, AuthMode } from './components/auth/AuthModal';
+import { AuthPage } from './components/auth/AuthPage';
 import { OrdemServico, OSStatus } from './types';
 import {
   Kanban,
@@ -64,11 +65,13 @@ export function App() {
   const {
     user,
     session,
+    loading: authLoading,
     isPasswordRecovery,
     setIsPasswordRecovery,
     signInWithEmail,
     signUpWithEmail,
     signInWithGoogle,
+    signInWithGithub,
     sendPasswordResetEmail,
     updatePassword,
     signOut,
@@ -97,6 +100,52 @@ export function App() {
     return newOrder;
   };
 
+  // 1. Tela de Carregamento da Sessao
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-light-bg text-light-text dark:bg-dark-bg dark:text-dark-text flex items-center justify-center font-sans">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded bg-black text-white dark:bg-white dark:text-black flex items-center justify-center font-bold text-lg font-mono-code animate-pulse">
+            FP
+          </div>
+          <p className="text-xs font-mono-code uppercase tracking-widest text-neutral-500">
+            FLUXPRO • Verificando Acesso...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Bloqueio Estrito de Acesso: Nao exibe projetos nem ordens sem login autenticado
+  if (!user) {
+    return (
+      <>
+        <AuthPage
+          initialMode={authModalMode}
+          onSignInWithEmail={signInWithEmail}
+          onSignUpWithEmail={signUpWithEmail}
+          onSignInWithGoogle={signInWithGoogle}
+          onSignInWithGithub={signInWithGithub}
+          onSendPasswordReset={sendPasswordResetEmail}
+          onUpdatePassword={updatePassword}
+          isSupabaseConfigured={isSupabaseConfigured}
+          onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          isPasswordRecovery={isPasswordRecovery}
+        />
+
+        {/* Modal de Configuracao do Supabase (se acessado na tela de login) */}
+        {isSettingsModalOpen && (
+          <SupabaseModal
+            onClose={() => setIsSettingsModalOpen(false)}
+            onConfigSaved={refreshOrders}
+          />
+        )}
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-light-bg text-light-text dark:bg-dark-bg dark:text-dark-text flex flex-col font-sans transition-colors duration-150">
       
@@ -121,29 +170,6 @@ export function App() {
         onSignOut={signOut}
         isSupabaseConfigured={isSupabaseConfigured}
       />
-
-      {/* Banner de Acesso Convidado (Discreto quando nao autenticado) */}
-      {!user && (
-        <div className="bg-neutral-100 dark:bg-neutral-900 border-b border-light-border dark:border-dark-border px-4 py-1.5 text-xs">
-          <div className="max-w-7xl mx-auto flex items-center justify-between text-neutral-600 dark:text-neutral-400">
-            <div className="flex items-center gap-2">
-              <UserIcon className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
-              <span>
-                Navegando como convidado. Faca login ou conecte o Google para salvar na nuvem.
-              </span>
-            </div>
-            <button
-              onClick={() => {
-                setAuthModalMode('login');
-                setIsAuthModalOpen(true);
-              }}
-              className="underline font-semibold text-light-text dark:text-dark-text hover:opacity-80"
-            >
-              Entrar / Cadastrar
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Alerta de Erro de Sincronização Supabase */}
       {syncError && (
@@ -358,6 +384,7 @@ export function App() {
         onSignInWithEmail={signInWithEmail}
         onSignUpWithEmail={signUpWithEmail}
         onSignInWithGoogle={signInWithGoogle}
+        onSignInWithGithub={signInWithGithub}
         onSendPasswordReset={sendPasswordResetEmail}
         onUpdatePassword={updatePassword}
         isSupabaseConfigured={isSupabaseConfigured}
