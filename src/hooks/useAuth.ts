@@ -226,6 +226,47 @@ export function useAuth() {
     }
   }, []);
 
+  // Login com GitHub OAuth
+  const signInWithGithub = useCallback(async () => {
+    setAuthError(null);
+    const client = getSupabaseClient();
+
+    if (!client || !isSupabaseConfigured()) {
+      const localGithubUser: LocalUser = {
+        id: 'github-demo-user',
+        email: 'projetista.github@fluxpro.com',
+        user_metadata: {
+          full_name: 'Projetista CV (GitHub)',
+          avatar_url: '',
+        },
+        is_local: true,
+      };
+      localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(localGithubUser));
+      setUser(localGithubUser);
+      return { error: null };
+    }
+
+    try {
+      const { error } = await client.auth.signInWithOAuth({
+        provider: 'github',
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+
+      if (error) {
+        setAuthError(error.message);
+        return { error };
+      }
+
+      return { error: null };
+    } catch (err: any) {
+      const msg = err?.message || 'Erro ao iniciar autenticacao com GitHub.';
+      setAuthError(msg);
+      return { error: new Error(msg) };
+    }
+  }, []);
+
   // Enviar Email de Recuperacao de Senha
   const sendPasswordResetEmail = useCallback(async (email: string) => {
     setAuthError(null);
@@ -307,6 +348,7 @@ export function useAuth() {
     signInWithEmail,
     signUpWithEmail,
     signInWithGoogle,
+    signInWithGithub,
     sendPasswordResetEmail,
     updatePassword,
     signOut,
