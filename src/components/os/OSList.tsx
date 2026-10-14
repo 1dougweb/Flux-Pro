@@ -1,23 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { OrdemServico, ItemPlanta } from '../../types';
-import { OSStatusBadge, OSPrioridadeBadge, StatusCorteBadge, TagBadge, AmbienteBadge } from '../common/Badge';
+import { OSStatusBadge, OSPrioridadeBadge, TagBadge } from '../common/Badge';
 import { areTagsEqual } from '../../lib/tags';
 import { DeliveryCountdown } from '../common/DeliveryCountdown';
-import { MaterialProgressBar } from '../materials/MaterialProgressBar';
-import { ItemPlantaTable } from '../planta/ItemPlantaTable';
 import {
   Scissors,
   Package,
-  Calendar,
-  ExternalLink,
-  ChevronRight,
-  ChevronDown,
-  ChevronUp,
   Layers,
-  Plus,
   Trash2,
   AlertTriangle,
   FolderOpen,
+  ChevronRight,
+  MapPin,
 } from 'lucide-react';
 
 interface OSListProps {
@@ -47,31 +41,10 @@ export const OSList: React.FC<OSListProps> = ({
   onDeleteOrder,
   selectedTag,
   onSelectTag,
-  selectedAmbientes = [],
-  onToggleAmbiente,
-  onAddItemPlanta,
-  onUpdateItemPlanta,
-  onRemoveItemPlanta,
-  onCycleItemPlantaStatus,
 }) => {
-  const [expandedOsIds, setExpandedOsIds] = useState<Set<string>>(new Set());
-
-  const toggleExpand = (osId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setExpandedOsIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(osId)) {
-        next.delete(osId);
-      } else {
-        next.add(osId);
-      }
-      return next;
-    });
-  };
-
   if (orders.length === 0) {
     return (
-      <div className="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded p-12 text-center">
+      <div className="bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-lg p-12 text-center shadow-sm">
         <FolderOpen className="w-10 h-10 mx-auto text-neutral-400 dark:text-neutral-600 mb-3" />
         <h3 className="text-base font-semibold text-light-text dark:text-dark-text mb-1">
           Nenhuma Ordem de Serviço encontrada
@@ -88,7 +61,6 @@ export const OSList: React.FC<OSListProps> = ({
       {orders.map((order) => {
         const isCutApproved = Boolean(order.plano_corte?.aprovado_producao);
         const cutChapasCount = order.plano_corte?.total_chapas || 0;
-        const isExpanded = expandedOsIds.has(order.id);
         const totalItens = order.itens_planta?.length || 0;
         const itensSemArquivo = (order.itens_planta || []).filter(
           (it) => !it.arquivo_corte_url && !it.arquivo_corte_nome
@@ -100,52 +72,61 @@ export const OSList: React.FC<OSListProps> = ({
           order.ambientes && order.ambientes.length > 0
             ? order.ambientes
             : order.ambiente
-            ? [order.ambiente]
+            ? order.ambiente.split(/[,;/+]+/).map((s) => s.trim()).filter(Boolean)
             : [];
+
+        const materiais = order.materiais || [];
+        const totalMateriais = materiais.length;
+        const materiaisSeparados = materiais.filter((m) => m.status_separacao === 'separado').length;
+        const separacaoPercent = totalMateriais > 0 ? Math.round((materiaisSeparados / totalMateriais) * 100) : 0;
 
         return (
           <div
             key={order.id}
             onClick={() => onSelectOrder(order)}
-            className="group cursor-pointer bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border hover:border-black dark:hover:border-white rounded p-4 transition-all"
+            className="group cursor-pointer bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border hover:border-black dark:hover:border-white rounded-lg p-4 sm:p-5 transition-all shadow-sm hover:shadow-md"
           >
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            {/* Linha Superior: Identificação, Projeto, Status e Prazos */}
+            <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
               
-              {/* Identificação e Projeto */}
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                  <span className="font-mono-code font-bold text-sm tracking-tight text-light-text dark:text-dark-text bg-light-surface dark:bg-dark-surface px-2 py-0.5 rounded border border-light-border dark:border-dark-border">
+              {/* Esquerda: OS + Título do Projeto + Cliente + Tags */}
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono-code font-bold text-xs tracking-tight text-light-text dark:text-dark-text bg-light-surface dark:bg-dark-surface px-2 py-0.5 rounded border border-light-border dark:border-dark-border">
                     {order.numero_os}
                   </span>
-                  <OSStatusBadge status={order.status} />
-                  <OSPrioridadeBadge prioridade={order.prioridade} />
-                  
-                  {/* Badges de Ambientes da Obra (Interativos) */}
-                  {orderAmbientesList.map((amb) => (
-                    <AmbienteBadge
-                      key={amb}
-                      ambiente={amb}
-                      selected={selectedAmbientes.includes(amb)}
-                      onClick={
-                        onToggleAmbiente
-                          ? () => onToggleAmbiente(amb)
-                          : undefined
-                      }
-                    />
-                  ))}
+
+                  <h3 className="text-sm sm:text-base font-bold text-light-text dark:text-dark-text group-hover:text-black dark:group-hover:text-white transition-colors truncate">
+                    {order.nome_projeto}
+                  </h3>
                 </div>
 
-                <h3 className="text-base font-bold text-light-text dark:text-dark-text group-hover:underline underline-offset-2 truncate">
-                  {order.nome_projeto}
-                </h3>
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-light-muted dark:text-dark-muted">
+                  <span>
+                    Cliente: <strong className="font-semibold text-light-text dark:text-dark-text">{order.cliente}</strong>
+                  </span>
 
-                <p className="text-xs text-light-muted dark:text-dark-muted mt-0.5">
-                  Cliente: <span className="font-medium text-light-text dark:text-dark-text">{order.cliente}</span>
-                  {order.telefone_cliente && ` • ${order.telefone_cliente}`}
-                </p>
+                  {order.telefone_cliente && (
+                    <>
+                      <span>•</span>
+                      <span>{order.telefone_cliente}</span>
+                    </>
+                  )}
 
+                  {orderAmbientesList.length > 0 && (
+                    <>
+                      <span>•</span>
+                      <span className="inline-flex items-center gap-1 font-mono-code text-[11px]">
+                        <MapPin className="w-3 h-3 text-neutral-400" />
+                        {orderAmbientesList.length} {orderAmbientesList.length === 1 ? 'ambiente' : 'ambientes'}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                {/* Etiquetas / Tags do Projeto (Estilo Trello) */}
                 {order.tags && order.tags.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1 mt-2">
+                  <div className="flex flex-wrap items-center gap-1 pt-0.5">
                     {order.tags.map((t) => (
                       <TagBadge
                         key={t}
@@ -162,55 +143,21 @@ export const OSList: React.FC<OSListProps> = ({
                 )}
               </div>
 
-              {/* Status do Plano de Corte (Destaque Antiesquecimento) */}
-              <div className="lg:w-56 shrink-0 p-2.5 rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface">
-                <div className="flex items-center justify-between text-xs mb-1 font-medium">
-                  <span className="flex items-center gap-1.5 text-neutral-700 dark:text-neutral-300">
-                    <Scissors className="w-3.5 h-3.5" />
-                    Plano de Corte
-                  </span>
-                  <StatusCorteBadge
-                    status={order.plano_corte?.status_corte || 'nao_iniciado'}
-                    aprovado={isCutApproved}
-                  />
-                </div>
-                <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                  {isCutApproved ? (
-                    <span className="text-neutral-800 dark:text-neutral-200 font-mono-code">
-                      {cutChapasCount} {cutChapasCount === 1 ? 'chapa especificada' : 'chapas especificadas'}
-                    </span>
-                  ) : (
-                    <span className="text-amber-800 dark:text-amber-400 font-medium flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3 shrink-0" />
-                      Pendente de validação
-                    </span>
-                  )}
-                </div>
-              </div>
+              {/* Direita: Status, Prioridade, Previsão e Ações */}
+              <div className="flex flex-wrap items-center gap-2 shrink-0 pt-1 lg:pt-0">
+                <OSStatusBadge status={order.status} />
+                <OSPrioridadeBadge prioridade={order.prioridade} />
 
-              {/* Status de Materiais */}
-              <div className="lg:w-48 shrink-0">
-                <div className="flex items-center gap-1.5 text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-                  <Package className="w-3.5 h-3.5" />
-                  <span>Separação</span>
-                </div>
-                <MaterialProgressBar materiais={order.materiais} compact />
-              </div>
-
-              {/* Previsão de Entrega e Ações */}
-              <div className="flex items-center justify-between lg:justify-end gap-3 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-light-border dark:border-dark-border">
-                <div className="text-right">
-                  <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-0.5">
-                    Previsão de Entrega
-                  </div>
+                <div className="text-xs">
                   <DeliveryCountdown
                     dateStr={order.previsao_entrega}
                     isDelivered={order.status === 'entregue'}
                   />
                 </div>
 
-                <div className="flex items-center gap-1 pl-2">
+                <div className="flex items-center gap-1 pl-1">
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       if (confirm(`Deseja realmente excluir a OS "${order.numero_os}"?`)) {
@@ -220,10 +167,10 @@ export const OSList: React.FC<OSListProps> = ({
                     title="Excluir OS"
                     className="p-1.5 rounded text-neutral-400 hover:text-red-600 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
 
-                  <div className="p-1.5 text-neutral-400 group-hover:text-black dark:group-hover:text-white transition-colors">
+                  <div className="p-1 text-neutral-400 group-hover:text-black dark:group-hover:text-white transition-colors">
                     <ChevronRight className="w-4 h-4" />
                   </div>
                 </div>
@@ -231,76 +178,80 @@ export const OSList: React.FC<OSListProps> = ({
 
             </div>
 
-            {/* Barra de Expansão dos Itens da Obra */}
-            <div className="mt-3 pt-2.5 border-t border-light-border dark:border-dark-border flex flex-wrap items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={(e) => toggleExpand(order.id, e)}
-                className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded border transition-colors ${
-                  isExpanded
-                    ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white font-bold'
-                    : 'bg-light-surface dark:bg-dark-surface border-light-border dark:border-dark-border text-light-text dark:text-dark-text hover:bg-neutral-200 dark:hover:bg-neutral-800'
-                }`}
-                title="Expandir ou recolher os itens desta obra"
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>
-                  {isExpanded ? 'Ocultar Itens da Obra' : `Ver Itens da Obra (${totalItens})`}
-                </span>
-                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </button>
+            {/* Linha Inferior: Faixa de Produção Limpa (Peças, Corte CNC, Insumos) */}
+            <div className="mt-3.5 pt-3 border-t border-light-border dark:border-dark-border flex flex-wrap items-center justify-between gap-y-2 gap-x-4 text-xs">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-light-muted dark:text-dark-muted">
+                
+                {/* Peças da Obra */}
+                <div className="flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                  <span className="font-mono-code font-semibold text-light-text dark:text-dark-text">
+                    {totalItens} {totalItens === 1 ? 'peça' : 'peças'}
+                  </span>
+                  {itensSemArquivo > 0 ? (
+                    <span className="text-[11px] font-mono-code text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-0.5">
+                      <AlertTriangle className="w-3 h-3" />
+                      {itensSemArquivo} sem arquivo CNC
+                    </span>
+                  ) : totalItens > 0 ? (
+                    <span className="text-[11px] text-neutral-500 font-mono-code">
+                      ({itensProntos}/{totalItens} prontos)
+                    </span>
+                  ) : null}
+                </div>
 
-              {/* Resumo de Peças, Prontos e Arquivos de Corte */}
-              <div className="flex items-center gap-2 text-[11px] font-mono-code text-light-muted dark:text-dark-muted">
-                <span>
-                  {totalItens} {totalItens === 1 ? 'peça' : 'peças'}
-                </span>
-                {itensProntos > 0 && (
-                  <span className="text-neutral-700 dark:text-neutral-300 font-semibold">
-                    • {itensProntos}/{totalItens} prontos
-                  </span>
-                )}
-                {itensSemArquivo > 0 ? (
-                  <span className="text-amber-800 dark:text-amber-400 font-bold flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3 shrink-0" />
-                    {itensSemArquivo} sem arquivo de corte
-                  </span>
-                ) : totalItens > 0 ? (
-                  <span className="text-neutral-600 dark:text-neutral-400">
-                    • Arquivos de corte OK
-                  </span>
-                ) : null}
+                <span className="text-neutral-300 dark:text-neutral-700 hidden sm:inline">•</span>
+
+                {/* Status do Corte CNC */}
+                <div className="flex items-center gap-1.5">
+                  <Scissors className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                  <span>Corte:</span>
+                  {isCutApproved ? (
+                    <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                      Liberado ({cutChapasCount} {cutChapasCount === 1 ? 'chapa' : 'chapas'})
+                    </span>
+                  ) : (
+                    <span className="text-amber-800 dark:text-amber-400 font-medium">
+                      Pendente de validação
+                    </span>
+                  )}
+                </div>
+
+                <span className="text-neutral-300 dark:text-neutral-700 hidden sm:inline">•</span>
+
+                {/* Status de Insumos / Almoxarifado */}
+                <div className="flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                  <span>Insumos:</span>
+                  {totalMateriais === 0 ? (
+                    <span className="text-neutral-400">Sem materiais</span>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono-code font-semibold text-light-text dark:text-dark-text">
+                        {materiaisSeparados}/{totalMateriais}
+                      </span>
+                      <div className="w-12 h-1.5 rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
+                        <div
+                          className="h-full bg-black dark:bg-white transition-all"
+                          style={{ width: `${separacaoPercent}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-neutral-500 font-mono-code">
+                        {separacaoPercent}%
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Dica sutil de clique para abrir a obra completa */}
+              <div className="text-[11px] text-neutral-400 group-hover:text-black dark:group-hover:text-white transition-colors flex items-center gap-1 font-medium ml-auto">
+                <span>Abrir obra</span>
+                <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
               </div>
             </div>
 
-            {/* Tabela de Itens Expandida Exclusiva desta OS */}
-            {isExpanded && (
-              <div
-                onClick={(e) => e.stopPropagation()}
-                className="mt-3 pt-3 border-t border-light-border dark:border-dark-border space-y-2 animate-in fade-in duration-150"
-              >
-                <div className="flex items-center justify-between pb-1">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-light-text dark:text-dark-text flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-neutral-500" />
-                    <span>Peças da Obra: {order.numero_os} - {order.nome_projeto}</span>
-                  </h4>
-                  <span className="text-[10px] text-light-muted dark:text-dark-muted">
-                    Alteração de etapas e arquivos de corte salvos automaticamente
-                  </span>
-                </div>
-
-                <ItemPlantaTable
-                  osId={order.id}
-                  osAmbientes={orderAmbientesList}
-                  itens={order.itens_planta || []}
-                  showOSColumn={false}
-                  onAddItem={onAddItemPlanta}
-                  onUpdateItem={onUpdateItemPlanta}
-                  onRemoveItem={onRemoveItemPlanta}
-                  onCycleStatus={onCycleItemPlantaStatus}
-                />
-              </div>
-            )}
           </div>
         );
       })}

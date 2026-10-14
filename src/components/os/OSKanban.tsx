@@ -381,26 +381,15 @@ export const OSKanban: React.FC<OSKanbanProps> = ({
                         </div>
                       )}
 
-                      {/* Ambientes da Obra (Ambientação da Comunicação Visual) */}
+                      {/* Ambientes da Obra (Resumo compacto e limpo) */}
                       {((order.ambientes && order.ambientes.length > 0) || order.ambiente) && (
-                        <div className="flex flex-wrap items-center gap-1 mb-2">
-                          {(order.ambientes && order.ambientes.length > 0
-                            ? order.ambientes
-                            : [order.ambiente!]
-                          ).map((amb) => (
-                            <AmbienteBadge
-                              key={amb}
-                              ambiente={amb}
-                              selected={selectedAmbientes.includes(amb)}
-                              onClick={
-                                onToggleAmbiente
-                                  ? (e?: any) => {
-                                      onToggleAmbiente(amb);
-                                    }
-                                  : undefined
-                              }
-                            />
-                          ))}
+                        <div className="flex items-center gap-1 mb-2 text-[10px] text-light-muted dark:text-dark-muted font-mono-code">
+                          <MapPin className="w-3 h-3 text-neutral-400 shrink-0" />
+                          <span className="truncate">
+                            {order.ambientes && order.ambientes.length > 1
+                              ? `${order.ambientes.length} ambientes (${order.ambientes.slice(0, 2).join(', ')}${order.ambientes.length > 2 ? '...' : ''})`
+                              : order.ambientes?.[0] || order.ambiente}
+                          </span>
                         </div>
                       )}
 
