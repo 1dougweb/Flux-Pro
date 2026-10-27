@@ -89,16 +89,42 @@ export function useAuth() {
       return;
     }
 
-    // 3. Processa código de troca PKCE do OAuth caso presente na URL
+    // 3. Processa retorno de autenticação OAuth (suporta PKCE ?code= e Implicit #access_token=)
     const authCode = searchParams.get('code');
+    const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token');
+
     const initAuth = async () => {
+      // 3.1 Se retornou com access_token no hash (fluxo Implicit)
+      if (accessToken) {
+        try {
+          const { data, error } = await client.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken || '',
+          });
+          if (error) {
+            console.warn('[Auth] Erro ao aplicar access_token OAuth:', error.message);
+          } else if (data?.session) {
+            if (isMounted) {
+              setSession(data.session);
+              setUser(data.session.user);
+              setLoading(false);
+            }
+            window.history.replaceState({}, document.title, window.location.pathname);
+            return;
+          }
+        } catch (e: any) {
+          console.warn('[Auth] Exceção ao processar access_token OAuth:', e);
+        }
+      }
+
+      // 3.2 Se retornou com code na query (fluxo PKCE)
       if (authCode) {
         try {
           const { data, error } = await client.auth.exchangeCodeForSession(authCode);
           if (error) {
             console.warn('[Auth] Erro ao trocar code OAuth:', error.message);
-            setAuthError(error.message);
-          } else if (data.session) {
+          } else if (data?.session) {
             if (isMounted) {
               setSession(data.session);
               setUser(data.session.user);
@@ -112,15 +138,20 @@ export function useAuth() {
         }
       }
 
-      // Carrega sessão atual
-      const { data: { session }, error } = await client.auth.getSession();
-      if (!isMounted) return;
-      if (error) {
-        console.warn('Erro ao carregar sessão Supabase:', error.message);
+      // 3.3 Carrega sessão persistida no navegador (localStorage)
+      try {
+        const { data: { session }, error } = await client.auth.getSession();
+        if (!isMounted) return;
+        if (error) {
+          console.warn('Erro ao carregar sessão Supabase:', error.message);
+        }
+        setSession(session);
+        setUser(session?.user ?? null);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
     };
 
     initAuth();
@@ -272,7 +303,7 @@ export function useAuth() {
       const redirectUrl = getAuthRedirectUrl();
       console.info('[Auth] Redirecionando Google OAuth para:', redirectUrl);
 
-      const { error } = await client.auth.signInWithOAuth({
+      const { data, error } = await client.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectUrl,
@@ -286,6 +317,10 @@ export function useAuth() {
       if (error) {
         setAuthError(error.message);
         return { error };
+      }
+
+      if (data?.url) {
+        window.location.href = data.url;
       }
 
       return { error: null };
