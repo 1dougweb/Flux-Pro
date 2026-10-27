@@ -33,7 +33,7 @@ export function getAuthRedirectUrl(): string {
     return `${origin}${cleanPath}`;
   }
 
-  return 'http://localhost:3000/';
+  return typeof window !== 'undefined' ? window.location.href : '';
 }
 
 export function useAuth() {
