@@ -194,25 +194,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </button>
         </div>
 
-        {/* Notificação de Modo Local vs Nuvem */}
-        {!isSupabaseConfigured && (
-          <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900/40 px-4 py-2 flex items-center justify-between text-[11px] text-amber-800 dark:text-amber-300">
-            <span>Modo Local Ativo. Dados salvos no navegador.</span>
-            {onOpenSettingsModal && (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenSettingsModal();
-                }}
-                className="underline hover:opacity-80 font-semibold cursor-pointer"
-              >
-                Configurar Nuvem
-              </button>
-            )}
-          </div>
-        )}
-
         {/* Seletor Segmentado (Abas Entrar / Cadastro) */}
         {(mode === 'login' || mode === 'register') && (
           <div className="px-5 pt-4">

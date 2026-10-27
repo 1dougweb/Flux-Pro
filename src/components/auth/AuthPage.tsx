@@ -10,13 +10,11 @@ import {
   EyeOff,
   Sun,
   Moon,
-  Database,
   ShieldCheck,
   Sparkles,
   Scissors,
   Layers,
   FileCode,
-  Zap,
   ArrowRight,
   Check,
 } from 'lucide-react';
@@ -34,8 +32,7 @@ interface AuthPageProps {
   onSignInWithGoogle: () => Promise<{ error: Error | null }>;
   onSendPasswordReset: (email: string) => Promise<{ error: Error | null }>;
   onUpdatePassword: (newPass: string) => Promise<{ error: Error | null }>;
-  isSupabaseConfigured: boolean;
-  onOpenSettingsModal: () => void;
+  isSupabaseConfigured?: boolean;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
   isPasswordRecovery?: boolean;
@@ -48,8 +45,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   onSignInWithGoogle,
   onSendPasswordReset,
   onUpdatePassword,
-  isSupabaseConfigured,
-  onOpenSettingsModal,
   theme,
   toggleTheme,
   isPasswordRecovery = false,
@@ -105,11 +100,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       if (res.error) {
         setErrorMessage(res.error.message);
       } else {
-        setSuccessMessage(
-          isSupabaseConfigured
-            ? 'Cadastro realizado com sucesso! Se o seu projeto exigir confirmação por email, confira sua caixa de entrada.'
-            : 'Conta criada e autenticada com sucesso no ambiente local!'
-        );
+        setSuccessMessage('Cadastro realizado com sucesso! Seja bem-vindo ao FLUXPRO.');
       }
     } else if (mode === 'forgot_password') {
       if (!email.trim()) {
@@ -154,19 +145,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setErrorMessage(null);
     setLoading(true);
     const res = await onSignInWithGoogle();
-    setLoading(false);
-    if (res.error) {
-      setErrorMessage(res.error.message);
-    }
-  };
-
-  // Login de Demonstração / Testes rápidos
-  const handleQuickDemo = async () => {
-    setEmail('projetista@fluxpro.com');
-    setPassword('fluxpro123');
-    setLoading(true);
-    setErrorMessage(null);
-    const res = await onSignInWithEmail('projetista@fluxpro.com', 'fluxpro123');
     setLoading(false);
     if (res.error) {
       setErrorMessage(res.error.message);
@@ -293,23 +271,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
-            {/* Status do Banco Supabase */}
-            <button
-              onClick={onOpenSettingsModal}
-              title={isSupabaseConfigured ? 'Supabase Conectado à Nuvem' : 'Configurar Banco de Dados'}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors shadow-2xs"
-            >
-              <Database className="w-3.5 h-3.5 text-zinc-500" />
-              <span className="text-[11px]">
-                {isSupabaseConfigured ? 'Banco Nuvem' : 'Configurar Banco'}
-              </span>
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  isSupabaseConfigured ? 'bg-emerald-500' : 'bg-amber-500'
-                }`}
-              />
-            </button>
-
             {/* Alternador de Tema Claro / Escuro */}
             <button
               onClick={toggleTheme}
@@ -570,19 +531,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   </svg>
                   <span>Google Account</span>
                 </button>
-
-                {/* Botão de Demonstração / Acesso Rápido */}
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={handleQuickDemo}
-                    disabled={loading}
-                    className="w-full py-2 px-3 text-[11px] font-semibold text-purple-600 dark:text-purple-400 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Zap className="w-3.5 h-3.5" />
-                    <span>Acesso Rápido de Teste (Demo)</span>
-                  </button>
-                </div>
               </>
             )}
 

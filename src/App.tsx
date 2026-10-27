@@ -110,31 +110,20 @@ export function App() {
     );
   }
 
-  // 2. Tela de Autenticação
+  // 2. Tela de Autenticação Segura (sem exposição de configurações do banco)
   if (!user) {
     return (
-      <>
-        <AuthPage
-          initialMode={authModalMode}
-          onSignInWithEmail={signInWithEmail}
-          onSignUpWithEmail={signUpWithEmail}
-          onSignInWithGoogle={signInWithGoogle}
-          onSendPasswordReset={sendPasswordResetEmail}
-          onUpdatePassword={updatePassword}
-          isSupabaseConfigured={isSupabaseConfigured}
-          onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
-          theme={theme}
-          toggleTheme={toggleTheme}
-          isPasswordRecovery={isPasswordRecovery}
-        />
-
-        {isSettingsModalOpen && (
-          <SupabaseModal
-            onClose={() => setIsSettingsModalOpen(false)}
-            onConfigSaved={refreshOrders}
-          />
-        )}
-      </>
+      <AuthPage
+        initialMode={authModalMode}
+        onSignInWithEmail={signInWithEmail}
+        onSignUpWithEmail={signUpWithEmail}
+        onSignInWithGoogle={signInWithGoogle}
+        onSendPasswordReset={sendPasswordResetEmail}
+        onUpdatePassword={updatePassword}
+        theme={theme}
+        toggleTheme={toggleTheme}
+        isPasswordRecovery={isPasswordRecovery}
+      />
     );
   }
 
