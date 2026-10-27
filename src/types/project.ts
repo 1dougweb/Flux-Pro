@@ -192,7 +192,7 @@ export function getProjectHealth(order: OrdemServico): {
   };
 }
 
-// Calcula progresso percentual do projeto
+// Calcula progresso percentual do projeto baseado nos itens da obra
 export function calculateProjectProgress(order: OrdemServico): number {
   if (order.status === 'entregue') return 100;
   if (order.status === 'cancelado') return 0;
@@ -201,17 +201,24 @@ export function calculateProjectProgress(order: OrdemServico): number {
   if (items.length > 0) {
     let completedPoints = 0;
     items.forEach((item) => {
-      if (item.status_item === 'instalado') completedPoints += 100;
-      else if (item.status_item === 'pronto_instalacao') completedPoints += 85;
-      else if (item.status_item === 'teste_eletrico') completedPoints += 70;
-      else if (item.status_item === 'em_producao') completedPoints += 50;
-      else if (item.status_item === 'corte_pendente') completedPoints += 25;
-      else completedPoints += 10;
+      // Se a peça está na etapa final (Pronto / Instalado ou Instalado), conta como 100% concluída
+      if (item.status_item === 'pronto_instalacao' || item.status_item === 'instalado') {
+        completedPoints += 100;
+      } else if (item.status_item === 'teste_eletrico') {
+        completedPoints += 75;
+      } else if (item.status_item === 'em_producao') {
+        completedPoints += 50;
+      } else if (item.status_item === 'corte_pendente') {
+        completedPoints += 25;
+      } else {
+        // layout inicial
+        completedPoints += 10;
+      }
     });
     return Math.round(completedPoints / items.length);
   }
 
-  // Fallback baseado no status macro
+  // Fallback baseado no status macro caso ainda não tenha peças cadastradas
   switch (order.status) {
     case 'medicao_visita':
       return 15;
@@ -224,7 +231,7 @@ export function calculateProjectProgress(order: OrdemServico): number {
     case 'em_producao':
       return 75;
     case 'pronto_entrega':
-      return 90;
+      return 100;
     default:
       return 20;
   }

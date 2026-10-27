@@ -6,6 +6,7 @@ import {
   FileCode,
   ChevronRight,
   GripVertical,
+  CheckCircle2,
 } from 'lucide-react';
 import { ItemPlanta, StatusItemObra } from '../../types';
 
@@ -109,7 +110,15 @@ const KanbanCardContent: React.FC<{
           )}
         </div>
 
-        {onAdvance && (
+        {item.status_item === 'pronto_instalacao' || item.status_item === 'instalado' ? (
+          <span
+            className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold text-[10px]"
+            title="Peça concluída (100%)"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Pronto</span>
+          </span>
+        ) : onAdvance ? (
           <button
             type="button"
             onClick={(e) => {
@@ -122,7 +131,7 @@ const KanbanCardContent: React.FC<{
           >
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
-        )}
+        ) : null}
       </div>
     </>
   );
