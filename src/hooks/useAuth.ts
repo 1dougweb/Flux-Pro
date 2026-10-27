@@ -14,6 +14,28 @@ export interface LocalUser {
   is_local?: boolean;
 }
 
+/**
+ * Retorna a URL canônica de redirecionamento para o Supabase Auth (Google OAuth e recuperação).
+ * Prioriza a variável VITE_AUTH_REDIRECT_URL se definida, ou detecta dinamicamente a URL atual.
+ */
+export function getAuthRedirectUrl(): string {
+  // 1. Variável de ambiente explícita (útil para build fixo de produção)
+  const envUrl = import.meta.env.VITE_AUTH_REDIRECT_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+    return envUrl.trim();
+  }
+
+  // 2. Resolução dinâmica no navegador
+  if (typeof window !== 'undefined' && window.location) {
+    const origin = window.location.origin;
+    const pathname = window.location.pathname || '/';
+    const cleanPath = pathname.endsWith('/') ? pathname : `${pathname}/`;
+    return `${origin}${cleanPath}`;
+  }
+
+  return 'http://localhost:3000/';
+}
+
 export function useAuth() {
   const [user, setUser] = useState<User | LocalUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -152,7 +174,7 @@ export function useAuth() {
           data: {
             full_name: fullName?.trim() || email.split('@')[0],
           },
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: getAuthRedirectUrl(),
         },
       });
 
@@ -202,10 +224,13 @@ export function useAuth() {
     }
 
     try {
+      const redirectUrl = getAuthRedirectUrl();
+      console.info('[Auth] Redirecionando Google OAuth para:', redirectUrl);
+
       const { error } = await client.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin,
+          redirectTo: redirectUrl,
           queryParams: {
             access_type: 'offline',
             prompt: 'select_account',
@@ -239,7 +264,7 @@ export function useAuth() {
 
     try {
       const { error } = await client.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}#type=recovery`,
+        redirectTo: `${getAuthRedirectUrl()}#type=recovery`,
       });
 
       if (error) {
