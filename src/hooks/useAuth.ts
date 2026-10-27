@@ -62,6 +62,8 @@ export function useAuth() {
         friendlyMsg = 'Login cancelado na conta Google.';
       } else if (friendlyMsg.toLowerCase().includes('redirect_uri_mismatch')) {
         friendlyMsg = 'URL de redirecionamento não autorizada no Google Cloud / Supabase.';
+      } else if (friendlyMsg.toLowerCase().includes('unable to exchange external code')) {
+        friendlyMsg = 'Erro de credencial no Supabase: O Client Secret ou a URI de redirecionamento no Google Cloud Console não coincide com a do Supabase.';
       }
       setAuthError(friendlyMsg);
       // Limpa os parâmetros de erro da URL para manter a barra limpa
@@ -309,8 +311,9 @@ export function useAuth() {
           redirectTo: redirectUrl,
           queryParams: {
             access_type: 'offline',
-            prompt: 'select_account',
+            prompt: 'consent select_account',
           },
+          scopes: 'email profile',
         },
       });
 
