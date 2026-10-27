@@ -48,7 +48,27 @@ export function useAuth() {
     let isMounted = true;
     const client = getSupabaseClient();
 
-    // Verifica se a URL contem parametros de recuperacao de senha
+    // 1. Detecta parâmetros de erro do OAuth (Google / Supabase)
+    const rawHash = (window.location.hash || '').replace(/^#/, '');
+    const hashParams = new URLSearchParams(rawHash);
+    const searchParams = new URLSearchParams(window.location.search || '');
+
+    const oauthError = searchParams.get('error_description') || hashParams.get('error_description') || searchParams.get('error') || hashParams.get('error');
+    if (oauthError) {
+      let friendlyMsg = decodeURIComponent(oauthError.replace(/\+/g, ' '));
+      if (friendlyMsg.toLowerCase().includes('already registered') || friendlyMsg.toLowerCase().includes('multiple accounts')) {
+        friendlyMsg = 'Esta conta já foi registrada com email e senha. Por favor, acerte seu login por email e senha.';
+      } else if (friendlyMsg.toLowerCase().includes('access_denied')) {
+        friendlyMsg = 'Login cancelado na conta Google.';
+      } else if (friendlyMsg.toLowerCase().includes('redirect_uri_mismatch')) {
+        friendlyMsg = 'URL de redirecionamento não autorizada no Google Cloud / Supabase.';
+      }
+      setAuthError(friendlyMsg);
+      // Limpa os parâmetros de erro da URL para manter a barra limpa
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // 2. Verifica se a URL contém parâmetros de recuperação de senha
     const hash = window.location.hash || '';
     const search = window.location.search || '';
     if (hash.includes('type=recovery') || search.includes('type=recovery')) {
@@ -69,18 +89,43 @@ export function useAuth() {
       return;
     }
 
-    // Carrega sessao do Supabase
-    client.auth.getSession().then(({ data: { session }, error }) => {
+    // 3. Processa código de troca PKCE do OAuth caso presente na URL
+    const authCode = searchParams.get('code');
+    const initAuth = async () => {
+      if (authCode) {
+        try {
+          const { data, error } = await client.auth.exchangeCodeForSession(authCode);
+          if (error) {
+            console.warn('[Auth] Erro ao trocar code OAuth:', error.message);
+            setAuthError(error.message);
+          } else if (data.session) {
+            if (isMounted) {
+              setSession(data.session);
+              setUser(data.session.user);
+              setLoading(false);
+            }
+            window.history.replaceState({}, document.title, window.location.pathname);
+            return;
+          }
+        } catch (e: any) {
+          console.warn('[Auth] Exceção ao processar code OAuth:', e);
+        }
+      }
+
+      // Carrega sessão atual
+      const { data: { session }, error } = await client.auth.getSession();
       if (!isMounted) return;
       if (error) {
-        console.warn('Erro ao carregar sessao Supabase:', error.message);
+        console.warn('Erro ao carregar sessão Supabase:', error.message);
       }
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
-    });
+    };
 
-    // Escuta mudancas no estado de autenticacao
+    initAuth();
+
+    // Escuta mudanças no estado de autenticação
     const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
       if (!isMounted) return;
 

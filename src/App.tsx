@@ -65,6 +65,7 @@ export function App() {
     updatePassword,
     signOut,
     isSupabaseConfigured,
+    authError,
   } = useAuth();
 
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
@@ -123,6 +124,7 @@ export function App() {
         theme={theme}
         toggleTheme={toggleTheme}
         isPasswordRecovery={isPasswordRecovery}
+        externalError={authError}
       />
     );
   }

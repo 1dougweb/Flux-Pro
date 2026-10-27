@@ -36,6 +36,7 @@ interface AuthPageProps {
   theme: 'light' | 'dark';
   toggleTheme: () => void;
   isPasswordRecovery?: boolean;
+  externalError?: string | null;
 }
 
 export const AuthPage: React.FC<AuthPageProps> = ({
@@ -48,6 +49,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   theme,
   toggleTheme,
   isPasswordRecovery = false,
+  externalError,
 }) => {
   const [mode, setMode] = useState<AuthMode>(isPasswordRecovery ? 'reset_password' : initialMode);
   const [email, setEmail] = useState('');
@@ -56,8 +58,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [fullName, setFullName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(externalError || null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (externalError) {
+      setErrorMessage(externalError);
+    }
+  }, [externalError]);
 
   useEffect(() => {
     if (isPasswordRecovery) {
