@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS itens_planta (
     foto_url TEXT,
     arquivo_corte_nome VARCHAR(200),
     arquivo_corte_url TEXT,
+    arquivos JSONB DEFAULT '[]'::jsonb,
     gabarito_gerado BOOLEAN DEFAULT false,
     status_corte VARCHAR(30) NOT NULL DEFAULT 'pendente' CHECK (
         status_corte IN ('pendente', 'cortado', 'liberado')

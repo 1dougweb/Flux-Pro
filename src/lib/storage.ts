@@ -674,14 +674,28 @@ export function normalizeOrder(order: OrdemServico): OrdemServico {
           aprovado_producao: Boolean(order.plano_corte.aprovado_producao),
         }
       : undefined,
-    itens_planta: (order.itens_planta || []).map((it) => ({
-      ...it,
-      id: ensureValidUUID(it.id),
-      os_id: osId,
-      quantidade: Number(it.quantidade || 1),
-      iluminado: Boolean(it.iluminado),
-      gabarito_gerado: Boolean(it.gabarito_gerado),
-    })),
+    itens_planta: (order.itens_planta || []).map((it) => {
+      let arquivosList = Array.isArray(it.arquivos) ? [...it.arquivos] : [];
+      if (arquivosList.length === 0 && (it.arquivo_corte_nome || it.arquivo_corte_url)) {
+        arquivosList.push({
+          id: ensureValidUUID(null),
+          nome: it.arquivo_corte_nome || 'arquivo_corte.dxf',
+          url: it.arquivo_corte_url || '',
+          tipo: 'corte_cnc',
+        });
+      }
+      return {
+        ...it,
+        id: ensureValidUUID(it.id),
+        os_id: osId,
+        quantidade: Number(it.quantidade || 1),
+        iluminado: Boolean(it.iluminado),
+        gabarito_gerado: Boolean(it.gabarito_gerado),
+        arquivos: arquivosList,
+        arquivo_corte_nome: it.arquivo_corte_nome || arquivosList[0]?.nome || undefined,
+        arquivo_corte_url: it.arquivo_corte_url || arquivosList[0]?.url || undefined,
+      };
+    }),
     materiais: (order.materiais || []).map((mat) => ({
       ...mat,
       id: ensureValidUUID(mat.id),
@@ -775,10 +789,30 @@ export async function saveOrderToSupabase(order: OrdemServico, client = getSupab
   // 3. Upsert e exclusão de Itens da Planta / Obra
   if (itens_planta && itens_planta.length > 0) {
     for (const item of itens_planta) {
-      const { error: itError } = await client.from('itens_planta').upsert({
+      const { arquivos, ...itemWithoutArquivos } = item;
+      const primaryArquivo = arquivos && arquivos.length > 0 ? arquivos[0] : null;
+
+      const itemRowWithArquivos = {
         ...item,
         os_id: normalized.id,
-      });
+        arquivo_corte_nome: item.arquivo_corte_nome || primaryArquivo?.nome || undefined,
+        arquivo_corte_url: item.arquivo_corte_url || primaryArquivo?.url || undefined,
+      };
+
+      let { error: itError } = await client.from('itens_planta').upsert(itemRowWithArquivos);
+
+      // Se a coluna arquivos ainda não existir no Supabase, tenta sem ela
+      if (itError && (itError.message.includes('arquivos') || itError.code === '42703')) {
+        const itemRowFallback = {
+          ...itemWithoutArquivos,
+          os_id: normalized.id,
+          arquivo_corte_nome: item.arquivo_corte_nome || primaryArquivo?.nome || undefined,
+          arquivo_corte_url: item.arquivo_corte_url || primaryArquivo?.url || undefined,
+        };
+        const retry = await client.from('itens_planta').upsert(itemRowFallback);
+        itError = retry.error;
+      }
+
       if (itError) {
         console.error('Erro no Supabase ao salvar itens_planta:', itError);
       }

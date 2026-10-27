@@ -2,41 +2,30 @@ import React, { useState, useEffect } from 'react';
 import { useTheme } from './hooks/useTheme';
 import { useOrders } from './hooks/useOrders';
 import { useAuth } from './hooks/useAuth';
-import { Navbar } from './components/layout/Navbar';
-import { Sidebar } from './components/layout/Sidebar';
-import { DashboardMetrics } from './components/dashboard/DashboardMetrics';
-import { OSList } from './components/os/OSList';
+import { ModernSidebar } from './components/layout/ModernSidebar';
+import { ModernTopbar } from './components/layout/ModernTopbar';
+import { CommandPalette } from './components/command/CommandPalette';
+import { ProjectsDashboard } from './components/projects/ProjectsDashboard';
+import { ProjectWorkspace } from './components/projects/ProjectWorkspace';
+import { ProjectCreateModal } from './components/projects/ProjectCreateModal';
 import { OSKanban } from './components/os/OSKanban';
-import { OSDetailPage } from './components/os/OSDetailPage';
-import { OSFormModal } from './components/os/OSFormModal';
 import { SupabaseModal } from './components/settings/SupabaseModal';
+import { FileManagerModal } from './components/assets/FileManagerModal';
 import { AuthModal, AuthMode } from './components/auth/AuthModal';
 import { AuthPage } from './components/auth/AuthPage';
 import { OrdemServico, OSStatus } from './types';
-import {
-  Kanban,
-  ListFilter,
-  AlertTriangle,
-  X,
-  User as UserIcon,
-} from 'lucide-react';
+import { AlertTriangle, X } from 'lucide-react';
 
 export function App() {
   const { theme, toggleTheme } = useTheme();
   const {
     orders,
     filteredOrders,
-    allItensPlanta,
     selectedOrder,
     setSelectedOrderId,
     selectedTag,
     setSelectedTag,
     allTags,
-    selectedAmbientes,
-    toggleAmbienteFilter,
-    selectSingleAmbiente,
-    clearAmbienteFilter,
-    allAmbientes,
     isLoading,
     dataSource,
     syncError,
@@ -78,21 +67,26 @@ export function App() {
     isSupabaseConfigured,
   } = useAuth();
 
-  const [isNewOSModalOpen, setIsNewOSModalOpen] = useState(false);
+  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isFileManagerOpen, setIsFileManagerOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<AuthMode>('login');
 
-  // Abre automaticamente o modal de redefinicao se o usuario acessou via link de recuperacao
+  // Atalho Global de Teclado (Ctrl + K / Cmd + K)
   useEffect(() => {
-    if (isPasswordRecovery) {
-      setAuthModalMode('reset_password');
-      setIsAuthModalOpen(true);
-    }
-  }, [isPasswordRecovery]);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
-  // Ao criar a OS, navega diretamente para a página dedicada da obra
-  const handleCreateOrder = async (
+  // Ao criar projeto, navega direto para o workspace do projeto
+  const handleCreateProject = async (
     data: Omit<OrdemServico, 'id' | 'created_at' | 'updated_at'>
   ) => {
     const newOrder = await createOrder(data);
@@ -100,23 +94,23 @@ export function App() {
     return newOrder;
   };
 
-  // 1. Tela de Carregamento da Sessao
+  // 1. Tela de Carregamento da Sessão
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-light-bg text-light-text dark:bg-dark-bg dark:text-dark-text flex items-center justify-center font-sans">
+      <div className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 flex items-center justify-center font-sans">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded bg-black text-white dark:bg-white dark:text-black flex items-center justify-center font-bold text-lg font-mono-code animate-pulse">
+          <div className="w-10 h-10 rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-zinc-950 flex items-center justify-center font-bold text-lg font-mono-code animate-pulse shadow-md">
             FP
           </div>
-          <p className="text-xs font-mono-code uppercase tracking-widest text-neutral-500">
-            FLUXPRO • Verificando Acesso...
+          <p className="text-xs font-mono-code uppercase tracking-widest text-zinc-400">
+            FLUXPRO 2.0 • Carregando Workspace...
           </p>
         </div>
       </div>
     );
   }
 
-  // 2. Bloqueio Estrito de Acesso: Nao exibe projetos nem ordens sem login autenticado
+  // 2. Tela de Autenticação
   if (!user) {
     return (
       <>
@@ -134,7 +128,6 @@ export function App() {
           isPasswordRecovery={isPasswordRecovery}
         />
 
-        {/* Modal de Configuracao do Supabase (se acessado na tela de login) */}
         {isSettingsModalOpen && (
           <SupabaseModal
             onClose={() => setIsSettingsModalOpen(false)}
@@ -146,38 +139,15 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen bg-light-bg text-light-text dark:bg-dark-bg dark:text-dark-text flex flex-col font-sans transition-colors duration-150">
-      
-      {/* Barra de Navegação Superior */}
-      <Navbar
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        onOpenNewOSModal={() => setIsNewOSModalOpen(true)}
-        onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
-        theme={theme}
-        toggleTheme={toggleTheme}
-        dataSource={dataSource}
-        user={user}
-        onOpenAuthModal={() => {
-          setAuthModalMode('login');
-          setIsAuthModalOpen(true);
-        }}
-        onOpenResetPasswordModal={() => {
-          setAuthModalMode('reset_password');
-          setIsAuthModalOpen(true);
-        }}
-        onSignOut={signOut}
-        isSupabaseConfigured={isSupabaseConfigured}
-      />
-
+    <div className="min-h-screen bg-zinc-50/60 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col font-sans transition-colors duration-150">
       {/* Alerta de Erro de Sincronização Supabase */}
       {syncError && (
-        <div className="bg-amber-100 dark:bg-amber-950/40 border-b border-amber-300 dark:border-amber-800 px-4 py-2.5">
+        <div className="bg-amber-100 dark:bg-amber-950/40 border-b border-amber-300 dark:border-amber-800 px-4 py-2">
           <div className="max-w-7xl mx-auto flex items-center justify-between text-xs text-amber-900 dark:text-amber-200">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <span>
-                <strong>Aviso de Banco:</strong> {syncError}. Os dados continuam salvos no navegador.
+                <strong>Aviso de Conexão:</strong> {syncError}. Os dados permanecem salvos localmente no navegador.
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -185,7 +155,7 @@ export function App() {
                 onClick={() => setIsSettingsModalOpen(true)}
                 className="underline font-semibold hover:opacity-80"
               >
-                Diagnosticar Banco
+                Configurações
               </button>
               <button
                 onClick={() => setSyncError(null)}
@@ -198,202 +168,158 @@ export function App() {
         </div>
       )}
 
-      {/* Conteúdo Principal */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {selectedOrder ? (
-          /* Página Dedicada da Obra (OS) com Sidebar Interno de Ambientes e Edição no Lápis */
-          <OSDetailPage
-            order={selectedOrder}
-            onBack={() => setSelectedOrderId(null)}
-            onUpdateCutPlan={updateCutPlan}
-            onAddItemPlanta={addItemPlanta}
-            onUpdateItemPlanta={updateItemPlanta}
-            onRemoveItemPlanta={removeItemPlanta}
-            onCycleItemPlantaStatus={cycleItemPlantaStatus}
-            onAddMaterial={addMaterialItem}
-            onUpdateMaterial={updateMaterialItem}
-            onRemoveMaterial={removeMaterialItem}
-            onCycleMaterialStatus={cycleMaterialStatus}
-            onChangeStatus={changeOSStatus}
-            onUpdateOrder={updateOrder}
-            allTags={allTags}
-            onToggleTag={toggleTagOnOrder}
-          />
-        ) : (
-          <>
-            {/* Painel Superior de Métricas Antiesquecimento */}
-            <DashboardMetrics
-              metrics={metrics}
-              currentFilter={filter}
-              setFilter={setFilter}
-            />
+      {/* Topbar Superior */}
+      <ModernTopbar
+        activeProject={selectedOrder}
+        onBackToProjects={() => setSelectedOrderId(null)}
+        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        onOpenNewProject={() => setIsNewProjectModalOpen(true)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        dataSource={dataSource}
+      />
 
-            {/* Corpo: Barra Lateral e Lista de OS */}
-            <div className="flex flex-col lg:flex-row gap-6">
-              
-              {/* Menu Lateral de Filtros */}
-              <Sidebar
-                currentFilter={filter}
-                setFilter={setFilter}
-                metrics={metrics}
-                allTags={allTags}
-                selectedTag={selectedTag}
-                onSelectTag={(tag) => setSelectedTag(tag)}
+      {/* Layout Dividido: Sidebar + Workspace Principal */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar Esquerdo de Navegação */}
+        <ModernSidebar
+          currentFilter={filter}
+          setFilter={setFilter}
+          activeProjectId={selectedOrder ? selectedOrder.id : null}
+          onSelectProject={(id) => setSelectedOrderId(id)}
+          orders={orders}
+          metrics={metrics}
+          onOpenNewProject={() => setIsNewProjectModalOpen(true)}
+          onOpenSettings={() => setIsSettingsModalOpen(true)}
+          user={user}
+          onSignOut={signOut}
+          selectedTag={selectedTag}
+          onSelectTag={(tag) => setSelectedTag(tag)}
+          allTags={allTags}
+          onOpenFileManager={() => setIsFileManagerOpen(true)}
+        />
+
+        {/* Área Principal de Conteúdo */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <div className="max-w-7xl mx-auto">
+            {selectedOrder ? (
+              /* Workspace Focado no Projeto Selecionado */
+              <ProjectWorkspace
+                order={selectedOrder}
+                onBack={() => setSelectedOrderId(null)}
+                onUpdateOrder={(id, updates) => {
+                  const target = orders.find((o) => o.id === id);
+                  if (target) {
+                    updateOrder({ ...target, ...updates });
+                  }
+                }}
+                onDeleteOrder={(id) => {
+                  deleteOrder(id);
+                  setSelectedOrderId(null);
+                }}
+                onAddItem={(itemData) => addItemPlanta(selectedOrder.id, itemData)}
+                onUpdateItem={(itemId, updates) =>
+                  updateItemPlanta(selectedOrder.id, itemId, updates)
+                }
+                onRemoveItem={(itemId) => removeItemPlanta(selectedOrder.id, itemId)}
+                onUpdateItemStatus={(itemId, newStatus) =>
+                  updateItemPlanta(selectedOrder.id, itemId, { status_item: newStatus })
+                }
+                onUpdateCutPlan={(planData) => updateCutPlan(selectedOrder.id, planData)}
+                onAddMaterial={(matData) => addMaterialItem(selectedOrder.id, matData)}
+                onUpdateMaterial={(matId, updates) =>
+                  updateMaterialItem(selectedOrder.id, matId, updates)
+                }
+                onRemoveMaterial={(matId) => removeMaterialItem(selectedOrder.id, matId)}
+                onCycleMaterialStatus={(matId) => cycleMaterialStatus(selectedOrder.id, matId)}
               />
-
-              {/* Área Principal de Conteúdo */}
-              <div className="flex-1 min-w-0">
-                
-                {/* Barra de Controle de Visualização */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 mb-4 border-b border-light-border dark:border-dark-border">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-sm font-bold uppercase tracking-wider text-light-text dark:text-dark-text">
-                      {filter === 'kanban'
-                        ? 'Fluxo da Produção (Kanban de Obras)'
-                        : filter === 'corte_pendente'
-                        ? 'Obras com Planos de Corte Pendentes'
-                        : filter === 'separacao_pendente'
-                        ? 'Obras com Separação de Materiais Pendente'
-                        : filter === 'urgentes_atrasadas'
-                        ? 'Obras com Prazos Críticos ou Atrasados'
-                        : filter === 'em_producao'
-                        ? 'Obras em Linha de Produção'
-                        : 'Todas as Obras (Ordens de Serviço)'}
+            ) : filter === 'kanban' ? (
+              /* Visão Global em Quadro Kanban */
+              <div className="space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800">
+                  <div>
+                    <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                      Quadro Geral de Produção
                     </h2>
-                    <span className="font-mono-code text-xs px-2 py-0.5 rounded bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border text-neutral-600 dark:text-neutral-400">
-                      {filteredOrders.length} {filteredOrders.length === 1 ? 'Obra' : 'Obras'}
-                    </span>
-
-                    {/* Indicador de Tag Ativa com 1 clique para remover */}
-                    {selectedTag && (
-                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-black text-white dark:bg-white dark:text-black text-xs font-mono-code font-bold animate-in fade-in">
-                        <span>Tag: #{selectedTag}</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedTag(null)}
-                          className="hover:opacity-70 ml-1 text-xs"
-                          title="Limpar filtro de tag"
-                        >
-                          &times;
-                        </button>
-                      </div>
-                    )}
+                    <p className="text-xs text-zinc-500">
+                      Fluxo de todas as obras ativas por fase de entrega
+                    </p>
                   </div>
-
-                  {/* Toggle Rápido Lista / Kanban */}
-                  <div className="flex items-center gap-1 bg-light-surface dark:bg-dark-surface p-1 rounded border border-light-border dark:border-dark-border">
-                    <button
-                      onClick={() => setFilter('todas')}
-                      className={`p-1.5 rounded transition-colors ${
-                        filter !== 'kanban'
-                          ? 'bg-black text-white dark:bg-white dark:text-black font-semibold'
-                          : 'text-neutral-500 hover:text-black dark:hover:text-white'
-                      }`}
-                      title="Visualização em Lista de Obras"
-                    >
-                      <ListFilter className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setFilter('kanban')}
-                      className={`p-1.5 rounded transition-colors ${
-                        filter === 'kanban'
-                          ? 'bg-black text-white dark:bg-white dark:text-black font-semibold'
-                          : 'text-neutral-500 hover:text-black dark:hover:text-white'
-                      }`}
-                      title="Visualização em Quadro Kanban"
-                    >
-                      <Kanban className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setFilter('todas')}
+                    className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    ← Voltar para Hub de Projetos
+                  </button>
                 </div>
 
-                {/* Conteúdo: Kanban de Obras ou Lista de Obras (com Itens Expandíveis) */}
-                {filter === 'kanban' ? (
-                  <OSKanban
-                    orders={filteredOrders}
-                    onSelectOrder={(order) => setSelectedOrderId(order.id)}
-                    onChangeStatus={changeOSStatus}
-                    selectedTag={selectedTag}
-                    onSelectTag={(tag) => setSelectedTag(tag === selectedTag ? null : tag)}
-                    allTags={allTags}
-                    onToggleTag={toggleTagOnOrder}
-                  />
-                ) : (
-                  <OSList
-                    orders={filteredOrders}
-                    onSelectOrder={(order) => setSelectedOrderId(order.id)}
-                    onDeleteOrder={deleteOrder}
-                    selectedTag={selectedTag}
-                    onSelectTag={(tag) => setSelectedTag(tag === selectedTag ? null : tag)}
-                    onAddItemPlanta={addItemPlanta}
-                    onUpdateItemPlanta={updateItemPlanta}
-                    onRemoveItemPlanta={removeItemPlanta}
-                    onCycleItemPlantaStatus={cycleItemPlantaStatus}
-                  />
-                )}
-
+                <OSKanban
+                  orders={filteredOrders}
+                  onSelectOrder={(order) => setSelectedOrderId(order.id)}
+                  onChangeStatus={changeOSStatus}
+                  selectedTag={selectedTag}
+                  onSelectTag={(tag) => setSelectedTag(tag)}
+                  allTags={allTags}
+                  onToggleTag={toggleTagOnOrder}
+                />
               </div>
-            </div>
-          </>
-        )}
-      </main>
-
-      {/* Rodapé Simples e Técnico */}
-      <footer className="border-t border-light-border dark:border-dark-border bg-light-card dark:bg-dark-card py-4 transition-colors">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-light-muted dark:text-dark-muted gap-2">
-          <div className="flex items-center gap-2">
-            <span className="font-mono-code font-bold text-light-text dark:text-dark-text">FLUXPRO v1.1</span>
-            <span>•</span>
-            <span>Itens da Planta, Cortes e Produção para Projetistas</span>
+            ) : (
+              /* Hub Central de Gestão de Projetos (Dashboard) */
+              <ProjectsDashboard
+                orders={filteredOrders}
+                onOpenProject={(id) => setSelectedOrderId(id)}
+                onNewProject={() => setIsNewProjectModalOpen(true)}
+                onChangeStatus={changeOSStatus}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                selectedTag={selectedTag}
+                onClearTag={() => setSelectedTag(null)}
+              />
+            )}
           </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setIsSettingsModalOpen(true)}
-              className="hover:text-light-text dark:hover:text-dark-text transition-colors underline underline-offset-2"
-            >
-              Configurar Supabase
-            </button>
-            <span>•</span>
-            <span>React + TypeScript + Vercel</span>
-          </div>
-        </div>
-      </footer>
+        </main>
+      </div>
 
-      {/* Modal de Abertura de Nova OS */}
-      {isNewOSModalOpen && (
-        <OSFormModal
-          onClose={() => setIsNewOSModalOpen(false)}
-          onCreateOrder={handleCreateOrder}
-          existingOrdersCount={orders.length}
-        />
-      )}
+      {/* Paleta de Comandos Global (Ctrl + K) */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        orders={orders}
+        onSelectProject={(id) => setSelectedOrderId(id)}
+        onNewProject={() => setIsNewProjectModalOpen(true)}
+        onSelectFilter={(f) => {
+          setSelectedOrderId(null);
+          setFilter(f);
+        }}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onOpenSettings={() => setIsSettingsModalOpen(true)}
+        onOpenFileManager={() => setIsFileManagerOpen(true)}
+      />
 
-      {/* Modal de Configuração do Supabase */}
+      {/* Modal Ágil de Criação de Projeto */}
+      <ProjectCreateModal
+        isOpen={isNewProjectModalOpen}
+        onClose={() => setIsNewProjectModalOpen(false)}
+        onCreate={handleCreateProject}
+      />
+
+      {/* Modal de Gestão Central de Arquivos & Biblioteca */}
+      <FileManagerModal
+        isOpen={isFileManagerOpen}
+        onClose={() => setIsFileManagerOpen(false)}
+        projectId={selectedOrder?.id}
+      />
+
+      {/* Modal de Configurações de Banco / Supabase */}
       {isSettingsModalOpen && (
         <SupabaseModal
           onClose={() => setIsSettingsModalOpen(false)}
           onConfigSaved={refreshOrders}
         />
       )}
-
-      {/* Modal de Autenticação (Login, Cadastro, Recuperação e Google Auth) */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        initialMode={authModalMode}
-        onClose={() => {
-          setIsAuthModalOpen(false);
-          setIsPasswordRecovery(false);
-        }}
-        onSignInWithEmail={signInWithEmail}
-        onSignUpWithEmail={signUpWithEmail}
-        onSignInWithGoogle={signInWithGoogle}
-        onSendPasswordReset={sendPasswordResetEmail}
-        onUpdatePassword={updatePassword}
-        isSupabaseConfigured={isSupabaseConfigured}
-        onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
-      />
-
     </div>
   );
 }
+
 export default App;

@@ -31,6 +31,7 @@ import {
   AlertTriangle,
   Package,
 } from 'lucide-react';
+import { downloadFile } from '../../lib/fileStorage';
 
 export interface ItemPlantaDisplay extends ItemPlanta {
   os_numero?: string;
@@ -468,18 +469,16 @@ export const ItemPlantaTable: React.FC<ItemPlantaTableProps> = ({
                     <td className="p-3">
                       {item.arquivo_corte_url || item.arquivo_corte_nome ? (
                         <div className="flex items-center gap-1.5">
-                          <a
-                            href={item.arquivo_corte_url || '#'}
-                            target="_blank"
-                            rel="noreferrer"
-                            download={item.arquivo_corte_nome || 'corte.dxf'}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-mono-code font-bold border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface hover:bg-neutral-200 dark:hover:bg-neutral-800 text-light-text dark:text-dark-text transition-colors max-w-[170px]"
+                          <button
+                            type="button"
+                            onClick={() => downloadFile(item.arquivo_corte_nome || 'corte.dxf', item.arquivo_corte_url)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-mono-code font-bold border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface hover:bg-neutral-200 dark:hover:bg-neutral-800 text-light-text dark:text-dark-text transition-colors max-w-[170px] cursor-pointer"
                             title={`Baixar arquivo de corte: ${item.arquivo_corte_nome || 'Arquivo de Corte'}`}
                           >
                             <Paperclip className="w-3 h-3 shrink-0 text-neutral-500" />
                             <span className="truncate">{item.arquivo_corte_nome || 'Arquivo de Corte'}</span>
                             <Download className="w-3 h-3 shrink-0 text-neutral-400 ml-0.5" />
-                          </a>
+                          </button>
 
                           {onUpdateItem && (
                             <label

@@ -47,6 +47,23 @@ export type StatusItemObra =
   | 'pronto_instalacao'
   | 'instalado';
 
+export type TipoArquivoItem =
+  | 'corte_cnc' // .DXF, .NC, .GCODE, Router
+  | 'vetor_design' // .CDR, .AI, .EPS, .SVG
+  | 'documento_pdf' // .PDF, Gabarito 1:1, Projeto Técnico
+  | 'imagem_render' // .JPG, .PNG, .WEBP, Foto de Obra
+  | 'link_drive' // Google Drive, Dropbox, WeTransfer
+  | 'outro';
+
+export interface ArquivoItem {
+  id: string;
+  nome: string;
+  url?: string;
+  tipo?: TipoArquivoItem;
+  observacao?: string;
+  created_at?: string;
+}
+
 export interface ItemPlanta {
   id: string;
   os_id: string;
@@ -62,8 +79,9 @@ export interface ItemPlanta {
   material_principal?: string; // Ex: ACM Azul 3mm, Acrílico Branco 3mm, PVC 20mm
   iluminado?: boolean; // Leva LED e fonte?
   foto_url?: string; // Foto da fachada/local ou Render 3D da comunicação visual
-  arquivo_corte_nome?: string; // Ex: "corte_fachada_router.dxf", "letras_laser.cdr"
-  arquivo_corte_url?: string; // Link web ou Data URL do arquivo de corte
+  arquivo_corte_nome?: string; // Legado / Principal
+  arquivo_corte_url?: string; // Legado / Principal
+  arquivos?: ArquivoItem[]; // Repeater de múltiplos arquivos por item
   gabarito_gerado?: boolean; // Gabarito 1:1 de instalação impresso?
   status_corte: 'pendente' | 'cortado' | 'liberado';
   status_item: StatusItemObra;
