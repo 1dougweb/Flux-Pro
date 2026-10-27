@@ -1,27 +1,31 @@
-import React, { useState } from 'react';
-import { OrdemServico, OSStatus, TipoMaquinaCorte } from '../../types';
-import { DeliveryCountdown } from '../common/DeliveryCountdown';
-import { MaterialProgressBar } from '../materials/MaterialProgressBar';
-import { StatusCorteBadge, TagBadge, AmbienteBadge } from '../common/Badge';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  OrdemServico,
+  OSStatus,
+  TipoMaquinaCorte,
+} from '../../types';
+import {
+  mapOSStatusToModern,
+  mapPriorityStyle,
+  getProjectHealth,
+  calculateProjectProgress,
+} from '../../types/project';
 import { TagManagerModal } from '../tags/TagManagerModal';
 import { areTagsEqual } from '../../lib/tags';
 import {
   ChevronRight,
-  ChevronLeft,
   Scissors,
-  Package,
   Layers,
   GripVertical,
-  ArrowRight,
-  Zap,
-  Check,
-  ArrowRightLeft,
-  Cpu,
-  Sparkles,
-  AlertTriangle,
+  Calendar,
+  CheckCircle2,
   MapPin,
-  Plus,
   Tag as TagIcon,
+  Plus,
+  Zap,
+  Sparkles,
+  FileCode,
 } from 'lucide-react';
 
 interface OSKanbanProps {
@@ -40,41 +44,223 @@ interface ColumnDef {
   status: OSStatus;
   title: string;
   description: string;
-  accentColor: string;
+  dotColor: string;
 }
 
 const COLUMNS: ColumnDef[] = [
   {
     status: 'layout_aprovado',
-    title: 'Layout / Medição',
-    description: 'Medição conferida e layout 3D aprovado',
-    accentColor: 'border-neutral-400 dark:border-neutral-600',
+    title: 'Layout & Medição',
+    description: 'Medição conferida e 3D aprovado',
+    dotColor: 'bg-blue-500',
   },
   {
     status: 'corte_pendente',
-    title: 'Arquivos CNC / Router',
-    description: 'Vetores DXF/EPS para Router, Laser e Plotter',
-    accentColor: 'border-amber-500',
+    title: 'Arquivos CNC & Router',
+    description: 'Vetores .DXF/.CDR e G-code',
+    dotColor: 'bg-purple-500',
   },
   {
     status: 'separacao_pendente',
     title: 'Separação de Materiais',
-    description: 'ACM, Acrílico, LEDs, Fontes e Serralheria',
-    accentColor: 'border-neutral-500',
+    description: 'ACM, Acrílico, LEDs e Insumos',
+    dotColor: 'bg-amber-500',
   },
   {
     status: 'em_producao',
     title: 'Usinagem & Produção',
-    description: 'Dobra de bandejas, solda, montagem e teste LED',
-    accentColor: 'border-black dark:border-white',
+    description: 'Corte, dobra, montagem e elétrica',
+    dotColor: 'bg-orange-500',
   },
   {
     status: 'pronto_entrega',
     title: 'Pronto / Instalação',
-    description: 'Gabarito 1:1 pronto e equipe na obra',
-    accentColor: 'border-neutral-400 dark:border-neutral-600',
+    description: 'Concluído e pronto para montagem',
+    dotColor: 'bg-emerald-500',
   },
 ];
+
+const nextStatusMap: Record<OSStatus, OSStatus> = {
+  medicao_visita: 'layout_aprovado',
+  layout_aprovado: 'corte_pendente',
+  corte_pendente: 'separacao_pendente',
+  separacao_pendente: 'em_producao',
+  em_producao: 'pronto_entrega',
+  pronto_entrega: 'entregue',
+  entregue: 'layout_aprovado',
+  cancelado: 'layout_aprovado',
+};
+
+interface DragState {
+  order: OrdemServico;
+  cardRect: DOMRect;
+  offset: { x: number; y: number };
+  currentPos: { x: number; y: number };
+  targetColumn: OSStatus;
+  targetIndex: number;
+}
+
+// Subcomponente com o design moderno de cada card de Projeto/OS
+const OSKanbanCardContent: React.FC<{
+  order: OrdemServico;
+  onAdvance?: () => void;
+  onManageTags?: () => void;
+  selectedTag?: string | null;
+  onSelectTag?: (tag: string) => void;
+}> = ({ order, onAdvance, onManageTags, selectedTag, onSelectTag }) => {
+  const priorityInfo = mapPriorityStyle(order.prioridade);
+  const healthInfo = getProjectHealth(order);
+  const progress = calculateProjectProgress(order);
+
+  const itemsCount = order.itens_planta?.length || 0;
+  const filesCount =
+    order.itens_planta?.reduce(
+      (acc, it) => acc + ((it.arquivos && it.arquivos.length) || (it.arquivo_corte_nome ? 1 : 0)),
+      0
+    ) || (order.plano_corte?.arquivo_ou_link ? 1 : 0);
+
+  const isFinalColumn = order.status === 'pronto_entrega' || order.status === 'entregue';
+
+  return (
+    <div className="space-y-2.5">
+      {/* 1. Topo: Código da OS, Prioridade e Saúde de Entrega */}
+      <div className="flex items-center justify-between gap-1.5 select-none">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <GripVertical className="w-3.5 h-3.5 text-zinc-300 dark:text-zinc-600 group-hover:text-zinc-500 transition-colors shrink-0" />
+          <span className="font-mono-code text-[11px] font-bold px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 truncate">
+            {order.numero_os}
+          </span>
+          <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded border ${priorityInfo.badgeClass}`}>
+            {priorityInfo.label}
+          </span>
+        </div>
+
+        {/* Badge de prazo */}
+        <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded border shrink-0 ${healthInfo.badgeClass}`}>
+          {healthInfo.label}
+        </span>
+      </div>
+
+      {/* 2. Nome do Projeto e Cliente */}
+      <div>
+        <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2 leading-snug">
+          {order.nome_projeto}
+        </h4>
+        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
+          Cliente: <span className="font-medium text-zinc-700 dark:text-zinc-300">{order.cliente}</span>
+        </p>
+      </div>
+
+      {/* 3. Barra de Progresso Real */}
+      <div className="space-y-1">
+        <div className="flex items-center justify-between text-[10px]">
+          <span className="text-zinc-400">Progresso</span>
+          <span className="font-mono-code font-bold text-zinc-700 dark:text-zinc-300">
+            {progress}%
+          </span>
+        </div>
+        <div className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${
+              progress === 100
+                ? 'bg-emerald-500'
+                : progress >= 60
+                ? 'bg-blue-600'
+                : 'bg-zinc-400 dark:bg-zinc-600'
+            }`}
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+
+      {/* 4. Badges de Produção (Peças, Arquivos e Ambientes) */}
+      <div className="flex items-center justify-between pt-1 text-[11px] text-zinc-500 border-t border-zinc-100 dark:border-zinc-800/80">
+        <div className="flex items-center gap-2">
+          {/* Contador de Peças */}
+          <span
+            className="flex items-center gap-1 font-mono-code text-[10px] text-zinc-600 dark:text-zinc-400"
+            title={`${itemsCount} peça(s) no plano da obra`}
+          >
+            <Layers className="w-3 h-3 text-zinc-400" />
+            <span>{itemsCount} {itemsCount === 1 ? 'peça' : 'peças'}</span>
+          </span>
+
+          {/* Contador de Arquivos / CNC */}
+          {filesCount > 0 && (
+            <span
+              className="flex items-center gap-1 font-mono-code text-[10px] text-purple-600 dark:text-purple-400"
+              title={`${filesCount} arquivo(s) de corte ou gabaritos vinculados`}
+            >
+              <FileCode className="w-3 h-3" />
+              <span>{filesCount}</span>
+            </span>
+          )}
+
+          {/* Ambientes */}
+          {order.ambientes && order.ambientes.length > 0 && (
+            <span
+              className="flex items-center gap-0.5 text-[10px] text-zinc-400 truncate max-w-[85px]"
+              title={order.ambientes.join(', ')}
+            >
+              <MapPin className="w-2.5 h-2.5" />
+              <span className="truncate">{order.ambientes[0]}</span>
+            </span>
+          )}
+        </div>
+
+        {/* Ação de Avançar ou Selo Concluído */}
+        <div>
+          {isFinalColumn ? (
+            <span
+              className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold text-[10px]"
+              title="Obra concluída e pronta para entrega / instalação"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Pronto</span>
+            </span>
+          ) : onAdvance ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAdvance();
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors cursor-pointer"
+              title="Avançar para próxima etapa de produção"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {/* 5. Etiquetas do Projeto */}
+      {order.tags && order.tags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1 pt-0.5">
+          {order.tags.map((tag) => (
+            <span
+              key={tag}
+              onClick={(e) => {
+                if (onSelectTag) {
+                  e.stopPropagation();
+                  onSelectTag(selectedTag === tag ? '' : tag);
+                }
+              }}
+              className={`text-[9px] font-mono-code px-1.5 py-0.2 rounded border cursor-pointer transition-colors ${
+                selectedTag === tag
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-400'
+              }`}
+            >
+              #{tag}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const OSKanban: React.FC<OSKanbanProps> = ({
   orders,
@@ -87,13 +273,22 @@ export const OSKanban: React.FC<OSKanbanProps> = ({
   allTags = [],
   onToggleTag,
 }) => {
-  const [draggedOrderId, setDraggedOrderId] = useState<string | null>(null);
-  const [dragOverColumn, setDragOverColumn] = useState<OSStatus | null>(null);
-  const [quickMoveOpenId, setQuickMoveOpenId] = useState<string | null>(null);
+  // Drag and Drop estilo Trello para o Quadro Geral de Obras
+  const [activeDrag, setActiveDrag] = useState<DragState | null>(null);
+  const activeDragRef = useRef<DragState | null>(null);
+  activeDragRef.current = activeDrag;
+
+  const pendingDragRef = useRef<{
+    order: OrdemServico;
+    startX: number;
+    startY: number;
+    cardRect: DOMRect;
+    offset: { x: number; y: number };
+  } | null>(null);
+
   const [tagModalOrder, setTagModalOrder] = useState<OrdemServico | null>(null);
 
-  const draggedOrder = orders.find((o) => o.id === draggedOrderId);
-
+  // Mapeia ordens pertencentes a cada coluna do fluxo geral
   const getOrdersForStatus = (status: OSStatus) => {
     if (status === 'layout_aprovado') {
       return orders.filter((o) => o.status === 'layout_aprovado' || o.status === 'medicao_visita');
@@ -104,462 +299,282 @@ export const OSKanban: React.FC<OSKanbanProps> = ({
     return orders.filter((o) => o.status === status);
   };
 
-  const getNextStatus = (current: OSStatus): OSStatus | null => {
-    switch (current) {
-      case 'medicao_visita':
-      case 'layout_aprovado':
-        return 'corte_pendente';
-      case 'corte_pendente':
-        return 'separacao_pendente';
-      case 'separacao_pendente':
-        return 'em_producao';
-      case 'em_producao':
-        return 'pronto_entrega';
-      case 'pronto_entrega':
-        return 'entregue';
-      default:
-        return null;
+  // Gerencia eventos globais de ponteiro
+  useEffect(() => {
+    const handlePointerMove = (e: PointerEvent) => {
+      // 1. Inicia arraste se ultrapassar 5px
+      if (pendingDragRef.current && !activeDragRef.current) {
+        const { startX, startY, order, cardRect, offset } = pendingDragRef.current;
+        const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
+        if (dist > 5) {
+          const initialCol =
+            order.status === 'medicao_visita'
+              ? 'layout_aprovado'
+              : order.status === 'entregue'
+              ? 'pronto_entrega'
+              : order.status;
+
+          const initialDrag: DragState = {
+            order,
+            cardRect,
+            offset,
+            currentPos: { x: e.clientX, y: e.clientY },
+            targetColumn: initialCol,
+            targetIndex: 0,
+          };
+          setActiveDrag(initialDrag);
+          document.body.style.cursor = 'grabbing';
+          document.body.style.userSelect = 'none';
+          window.getSelection()?.removeAllRanges();
+        }
+      }
+
+      // 2. Acompanha arraste e calcula coluna de destino sob o mouse
+      if (activeDragRef.current) {
+        const currentPos = { x: e.clientX, y: e.clientY };
+
+        const colEl = document
+          .elementFromPoint(e.clientX, e.clientY)
+          ?.closest('[data-global-column-id]') as HTMLElement | null;
+
+        let targetColumn = activeDragRef.current.targetColumn;
+        let targetIndex = activeDragRef.current.targetIndex;
+
+        if (colEl) {
+          const colId = colEl.getAttribute('data-global-column-id') as OSStatus;
+          if (colId) {
+            targetColumn = colId;
+
+            const cardEls = Array.from(
+              colEl.querySelectorAll('[data-global-card-id]')
+            ) as HTMLElement[];
+
+            let idx = cardEls.length;
+            for (let i = 0; i < cardEls.length; i++) {
+              const rect = cardEls[i].getBoundingClientRect();
+              const midY = rect.top + rect.height / 2;
+              if (e.clientY < midY) {
+                idx = i;
+                break;
+              }
+            }
+            targetIndex = idx;
+          }
+        }
+
+        setActiveDrag((prev) =>
+          prev
+            ? {
+                ...prev,
+                currentPos,
+                targetColumn,
+                targetIndex,
+              }
+            : null
+        );
+      }
+    };
+
+    const handlePointerUp = () => {
+      if (activeDragRef.current) {
+        const { order, targetColumn } = activeDragRef.current;
+        const currentCol =
+          order.status === 'medicao_visita'
+            ? 'layout_aprovado'
+            : order.status === 'entregue'
+            ? 'pronto_entrega'
+            : order.status;
+
+        if (targetColumn && targetColumn !== currentCol) {
+          onChangeStatus(order.id, targetColumn);
+        }
+
+        setActiveDrag(null);
+        pendingDragRef.current = null;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        return;
+      }
+
+      if (pendingDragRef.current) {
+        const clickedOrder = pendingDragRef.current.order;
+        pendingDragRef.current = null;
+        onSelectOrder(clickedOrder);
+      }
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [onChangeStatus, onSelectOrder]);
+
+  const handleCardPointerDown = (e: React.PointerEvent, order: OrdemServico) => {
+    if (e.button !== 0) return;
+
+    const target = e.target as HTMLElement;
+    if (
+      target.closest('button') ||
+      target.closest('a') ||
+      target.closest('input') ||
+      target.closest('select')
+    ) {
+      return;
     }
-  };
 
-  const getPrevStatus = (current: OSStatus): OSStatus | null => {
-    switch (current) {
-      case 'corte_pendente':
-        return 'layout_aprovado';
-      case 'separacao_pendente':
-        return 'corte_pendente';
-      case 'em_producao':
-        return 'separacao_pendente';
-      case 'pronto_entrega':
-        return 'em_producao';
-      case 'entregue':
-        return 'pronto_entrega';
-      default:
-        return null;
-    }
-  };
+    const cardEl = e.currentTarget as HTMLElement;
+    const cardRect = cardEl.getBoundingClientRect();
+    const offset = {
+      x: e.clientX - cardRect.left,
+      y: e.clientY - cardRect.top,
+    };
 
-  // Drag and Drop handlers
-  const handleDragStart = (e: React.DragEvent, orderId: string) => {
-    setDraggedOrderId(orderId);
-    setQuickMoveOpenId(null);
-    e.dataTransfer.setData('text/plain', orderId);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragEnd = () => {
-    setDraggedOrderId(null);
-    setDragOverColumn(null);
-  };
-
-  const handleDragOver = (e: React.DragEvent, colStatus: OSStatus) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (dragOverColumn !== colStatus) {
-      setDragOverColumn(colStatus);
-    }
-  };
-
-  const handleDragLeave = (e: React.DragEvent, colStatus: OSStatus) => {
-    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-    if (dragOverColumn === colStatus) {
-      setDragOverColumn(null);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent, colStatus: OSStatus) => {
-    e.preventDefault();
-    const orderId = e.dataTransfer.getData('text/plain') || draggedOrderId;
-    if (orderId) {
-      onChangeStatus(orderId, colStatus);
-    }
-    setDraggedOrderId(null);
-    setDragOverColumn(null);
-  };
-
-  // Helper para identificar as máquinas de uma OS
-  const getMachinesSummary = (order: OrdemServico) => {
-    const set = new Set<string>();
-    if (order.plano_corte?.maquina_principal) {
-      set.add(order.plano_corte.maquina_principal);
-    }
-    (order.itens_planta || []).forEach((it) => {
-      if (it.maquina_corte === 'router_cnc') set.add('Router CNC');
-      if (it.maquina_corte === 'laser') set.add('Laser');
-      if (it.maquina_corte === 'plotter_recorte') set.add('Plotter');
-    });
-    return Array.from(set);
-  };
-
-  // Helper para verificar se possui LED
-  const hasLED = (order: OrdemServico) => {
-    return (
-      (order.itens_planta || []).some((i) => i.iluminado) ||
-      (order.materiais || []).some((m) => m.categoria === 'iluminacao')
-    );
+    pendingDragRef.current = {
+      order,
+      startX: e.clientX,
+      startY: e.clientY,
+      cardRect,
+      offset,
+    };
   };
 
   return (
-    <div className="w-full select-none" onClick={() => setQuickMoveOpenId(null)}>
-      {/* Guia visual do Drag and Drop */}
-      {draggedOrderId && (
-        <div className="mb-3 px-3 py-2 rounded border border-dashed border-black dark:border-white bg-light-surface dark:bg-dark-surface flex items-center justify-between text-xs animate-in fade-in duration-150">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-black dark:bg-white animate-ping" />
-            <span className="font-semibold text-light-text dark:text-dark-text">
-              Modo de Arraste Ativo:
-            </span>
-            <span className="font-mono-code font-bold">
-              {draggedOrder?.numero_os} - {draggedOrder?.cliente}
-            </span>
-          </div>
-          <span className="text-light-muted dark:text-dark-muted hidden sm:inline">
-            Solte o card sobre a coluna da etapa de destino
-          </span>
-        </div>
-      )}
-
-      {/* Container fluido com rolagem horizontal livre e espaçamento amplo */}
-      <div className="flex gap-5 overflow-x-auto pb-6 pt-1 px-1 scroll-smooth">
+    <div className="w-full">
+      {/* Colunas do Quadro Geral (Scroll Horizontal Suave) */}
+      <div className="flex gap-4 overflow-x-auto pb-6 pt-1 items-start min-h-[520px]">
         {COLUMNS.map((col) => {
-          const colOrders = getOrdersForStatus(col.status);
-          const isOver = dragOverColumn === col.status;
-          const isSourceColumn = draggedOrder && (draggedOrder.status === col.status || (col.status === 'layout_aprovado' && draggedOrder.status === 'medicao_visita') || (col.status === 'pronto_entrega' && draggedOrder.status === 'entregue'));
-          const showDropTarget = isOver && draggedOrder && !isSourceColumn;
+          const rawColOrders = getOrdersForStatus(col.status);
+
+          const isDragging = activeDrag !== null;
+          const colOrders = isDragging
+            ? rawColOrders.filter((o) => o.id !== activeDrag.order.id)
+            : rawColOrders;
+
+          const isTargetCol = activeDrag?.targetColumn === col.status;
+
+          type ColItem = { type: 'card'; order: OrdemServico } | { type: 'placeholder' };
+          const itemsToRender: ColItem[] = colOrders.map((o) => ({ type: 'card', order: o }));
+
+          if (isTargetCol && activeDrag) {
+            const insertIdx = Math.min(Math.max(activeDrag.targetIndex, 0), itemsToRender.length);
+            itemsToRender.splice(insertIdx, 0, { type: 'placeholder' });
+          }
 
           return (
             <div
               key={col.status}
-              onDragOver={(e) => handleDragOver(e, col.status)}
-              onDragLeave={(e) => handleDragLeave(e, col.status)}
-              onDrop={(e) => handleDrop(e, col.status)}
-              className={`flex flex-col w-[320px] min-w-[320px] max-w-[320px] shrink-0 rounded-lg border transition-all duration-200 ${
-                isOver
-                  ? 'border-black dark:border-white bg-neutral-100 dark:bg-neutral-900 ring-2 ring-black/30 dark:ring-white/30 scale-[1.01]'
-                  : draggedOrderId
-                  ? 'border-light-border dark:border-dark-border bg-light-surface/60 dark:bg-dark-surface/60 opacity-90'
-                  : 'border-light-border dark:border-dark-border bg-light-surface/40 dark:bg-dark-surface/40'
+              data-global-column-id={col.status}
+              className={`w-80 shrink-0 bg-zinc-100/70 dark:bg-zinc-900/60 border rounded-xl flex flex-col max-h-[80vh] transition-all duration-150 ${
+                isTargetCol
+                  ? 'border-blue-500/80 dark:border-blue-500/80 bg-blue-50/30 dark:bg-blue-950/20 ring-2 ring-blue-500/20 shadow-md'
+                  : 'border-zinc-200 dark:border-zinc-800'
               }`}
             >
-              
-              {/* Cabeçalho da Coluna com Feedback de Drop */}
-              <div className={`p-3.5 border-b rounded-t-lg transition-colors ${
-                isOver
-                  ? 'border-black dark:border-white bg-light-surface dark:bg-dark-surface'
-                  : 'border-light-border dark:border-dark-border bg-light-card/80 dark:bg-dark-card/80'
-              }`}>
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2.5 h-2.5 rounded-full border ${col.accentColor} bg-current`} />
-                    <h4 className="text-xs font-bold text-light-text dark:text-dark-text uppercase tracking-wider">
+              {/* Header da Coluna */}
+              <div className="p-3.5 border-b border-zinc-200/80 dark:border-zinc-800 flex items-center justify-between select-none">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2.5 h-2.5 rounded-full ${col.dotColor}`} />
+                  <div>
+                    <h4 className="text-xs font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-wider">
                       {col.title}
                     </h4>
+                    <p className="text-[10px] text-zinc-400 font-normal">
+                      {col.description}
+                    </p>
                   </div>
-                  
-                  {isOver && !isSourceColumn ? (
-                    <span className="text-[10px] uppercase font-bold tracking-tight px-1.5 py-0.5 rounded bg-black text-white dark:bg-white dark:text-black animate-pulse">
-                      Soltar Aqui
-                    </span>
-                  ) : (
-                    <span className="font-mono-code text-xs px-2 py-0.5 rounded bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border font-bold text-light-text dark:text-dark-text">
-                      {colOrders.length}
-                    </span>
-                  )}
                 </div>
-                <p className="text-[11px] text-light-muted dark:text-dark-muted truncate">
-                  {col.description}
-                </p>
+
+                <span className="font-mono-code text-[11px] font-bold text-zinc-500 bg-white dark:bg-zinc-800 px-2 py-0.5 rounded-md border border-zinc-200/80 dark:border-zinc-750">
+                  {rawColOrders.length}
+                </span>
               </div>
 
-              {/* Área de Cartões (Dropzone) */}
-              <div className="p-3 space-y-3 flex-1 min-h-[480px] flex flex-col">
-                
-                {/* Slot Animado de Destino (Drop Placeholder) no Topo da Coluna */}
-                {showDropTarget && (
-                  <div className="border-2 border-dashed border-black dark:border-white bg-neutral-200/60 dark:bg-neutral-800/60 rounded-lg p-4 flex flex-col items-center justify-center gap-1.5 text-center animate-pulse transition-all">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-light-text dark:text-dark-text">
-                      <ArrowRight className="w-4 h-4 text-black dark:text-white" />
-                      <span>Mover {draggedOrder?.numero_os}</span>
-                    </div>
-                    <span className="text-[11px] text-light-muted dark:text-dark-muted">
-                      para {col.title}
-                    </span>
-                  </div>
-                )}
-
-                {/* Lista de Cards da Coluna */}
-                {colOrders.map((order) => {
-                  const isCutApproved = Boolean(order.plano_corte?.aprovado_producao);
-                  const isDragging = draggedOrderId === order.id;
-                  const next = getNextStatus(order.status);
-                  const prev = getPrevStatus(order.status);
-                  const itensCount = order.itens_planta?.length || 0;
-                  const machines = getMachinesSummary(order);
-                  const withLED = hasLED(order);
-                  const withGabarito = Boolean(order.plano_corte?.gabarito_pronto);
-                  const isQuickMoveOpen = quickMoveOpenId === order.id;
-
-                  // Se o card está sendo arrastado, renderiza o slot de silhueta no lugar de origem
-                  if (isDragging) {
+              {/* Área de Cards com Suporte a Drag & Drop do Trello */}
+              <div className="p-2.5 space-y-2.5 overflow-y-auto flex-1 min-h-[160px]">
+                {itemsToRender.map((item) => {
+                  if (item.type === 'placeholder') {
                     return (
                       <div
-                        key={order.id}
-                        className="border-2 border-dashed border-neutral-400 dark:border-neutral-600 bg-neutral-100/50 dark:bg-neutral-900/50 rounded-lg p-4 flex flex-col items-center justify-center gap-1 text-center min-h-[140px] opacity-60"
-                      >
-                        <span className="font-mono-code font-bold text-xs text-light-muted dark:text-dark-muted">
-                          {order.numero_os}
-                        </span>
-                        <span className="text-[11px] text-light-muted dark:text-dark-muted">
-                          Movendo pela esteira...
-                        </span>
-                      </div>
+                        key="trello-global-drop-placeholder"
+                        style={{
+                          minHeight: activeDrag ? `${activeDrag.cardRect.height || 140}px` : '140px',
+                        }}
+                        className="w-full rounded-xl border-2 border-dashed border-zinc-400 dark:border-zinc-600 bg-zinc-200/60 dark:bg-zinc-800/60 transition-all duration-150"
+                      />
                     );
                   }
+
+                  const order = item.order;
+                  const next = nextStatusMap[order.status];
 
                   return (
                     <div
                       key={order.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, order.id)}
-                      onDragEnd={handleDragEnd}
-                      onClick={() => onSelectOrder(order)}
-                      className="relative cursor-pointer bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border hover:border-black dark:hover:border-white rounded-lg p-3.5 transition-all duration-150 group shadow-sm hover:shadow-md hover:-translate-y-0.5"
+                      data-global-card-id={order.id}
+                      onPointerDown={(e) => handleCardPointerDown(e, order)}
+                      style={{ touchAction: 'none' }}
+                      className="group bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-3.5 transition-all cursor-grab active:cursor-grabbing hover:border-zinc-400 dark:hover:border-zinc-700 hover:shadow-xs select-none"
                     >
-                      {/* Topo do Card: Alça de Arraste, OS e Previsão */}
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-1.5">
-                          {/* Alça tátil de arraste com visualizador interativo */}
-                          <div
-                            className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-400 group-hover:text-black dark:group-hover:text-white transition-colors"
-                            title="Clique e arraste este card para mover de etapa"
-                          >
-                            <GripVertical className="w-4 h-4" />
-                          </div>
-
-                          <span className="font-mono-code text-[11px] font-bold px-1.5 py-0.5 rounded bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border text-light-text dark:text-dark-text">
-                            {order.numero_os}
-                          </span>
-                        </div>
-
-                        <DeliveryCountdown
-                          dateStr={order.previsao_entrega}
-                          isDelivered={order.status === 'entregue'}
-                        />
-                      </div>
-
-                      {/* Nome do Projeto e Cliente */}
-                      <h5 className="text-xs font-bold text-light-text dark:text-dark-text group-hover:underline underline-offset-2 mb-1 line-clamp-2">
-                        {order.nome_projeto}
-                      </h5>
-                      <p className="text-[11px] text-light-muted dark:text-dark-muted mb-2.5 truncate">
-                        Cliente: <span className="text-light-text dark:text-dark-text font-medium">{order.cliente}</span>
-                      </p>
-
-                      {/* Chips Rápidos de Comunicação Visual (Máquinas, LED e Gabarito) */}
-                      {(machines.length > 0 || withLED || withGabarito) && (
-                        <div className="flex flex-wrap items-center gap-1 mb-2.5">
-                          {machines.map((m) => (
-                            <span
-                              key={m}
-                              className="text-[9px] font-mono-code font-bold px-1.5 py-0.5 rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface text-light-text dark:text-dark-text"
-                            >
-                              {m}
-                            </span>
-                          ))}
-                          {withLED && (
-                            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded border border-neutral-300 dark:border-neutral-700 bg-light-surface dark:bg-dark-surface text-light-text dark:text-dark-text">
-                              <Zap className="w-2.5 h-2.5 text-neutral-700 dark:text-neutral-300" />
-                              LED 12V
-                            </span>
-                          )}
-                          {withGabarito && (
-                            <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded border border-neutral-300 dark:border-neutral-700 bg-light-surface dark:bg-dark-surface text-light-text dark:text-dark-text">
-                              <Sparkles className="w-2.5 h-2.5 text-neutral-600 dark:text-neutral-400" />
-                              Gabarito 1:1
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Ambientes da Obra (Resumo compacto e limpo) */}
-                      {((order.ambientes && order.ambientes.length > 0) || order.ambiente) && (
-                        <div className="flex items-center gap-1 mb-2 text-[10px] text-light-muted dark:text-dark-muted font-mono-code">
-                          <MapPin className="w-3 h-3 text-neutral-400 shrink-0" />
-                          <span className="truncate">
-                            {order.ambientes && order.ambientes.length > 1
-                              ? `${order.ambientes.length} ambientes (${order.ambientes.slice(0, 2).join(', ')}${order.ambientes.length > 2 ? '...' : ''})`
-                              : order.ambientes?.[0] || order.ambiente}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Tags do Projeto (Estilo Trello com Cores Vivas) */}
-                      <div className="flex flex-wrap items-center gap-1 mb-2.5">
-                        {order.tags &&
-                          order.tags.map((t) => (
-                            <TagBadge
-                              key={t}
-                              tag={t}
-                              selected={Boolean(selectedTag && areTagsEqual(selectedTag, t))}
-                              onClick={
-                                onSelectTag
-                                  ? () => onSelectTag(selectedTag && areTagsEqual(selectedTag, t) ? '' : t)
-                                  : undefined
-                              }
-                            />
-                          ))}
-
-                        {/* Botão de Adicionar/Gerenciar Etiquetas no Card */}
-                        {onToggleTag && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setTagModalOrder(order);
-                            }}
-                            className="inline-flex items-center justify-center h-4 px-1 rounded border border-dashed border-light-border dark:border-dark-border hover:border-black dark:hover:border-white text-neutral-400 hover:text-black dark:hover:text-white transition-colors"
-                            title="Gerenciar etiquetas desta OS"
-                          >
-                            <Plus className="w-2.5 h-2.5" />
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Itens da Planta e Status de Corte */}
-                      <div className="grid grid-cols-2 gap-1.5 mb-2.5 text-[10px]">
-                        <div className="flex items-center gap-1 p-1.5 rounded bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border">
-                          <Scissors className="w-3 h-3 text-neutral-500 shrink-0" />
-                          <span className="truncate">
-                            {isCutApproved ? 'Corte OK' : 'Corte Pend.'}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1 p-1.5 rounded bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border">
-                          <Layers className="w-3 h-3 text-neutral-500 shrink-0" />
-                          <span className="truncate font-mono-code">
-                            {itensCount} {itensCount === 1 ? 'item' : 'itens'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Progresso de Separação de Materiais */}
-                      <div className="mb-3">
-                        <MaterialProgressBar materiais={order.materiais} compact />
-                      </div>
-
-                      {/* Rodapé do Card com Ações em 1 Clique e Botão Mover */}
-                      <div className="flex items-center justify-between pt-2.5 border-t border-light-border dark:border-dark-border">
-                        {/* Botão Voltar Etapa */}
-                        {prev ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onChangeStatus(order.id, prev);
-                            }}
-                            title="Voltar etapa anterior"
-                            className="p-1 rounded text-neutral-400 hover:text-black dark:hover:text-white hover:bg-light-surface dark:hover:bg-dark-surface transition-colors"
-                          >
-                            <ChevronLeft className="w-3.5 h-3.5" />
-                          </button>
-                        ) : (
-                          <div className="w-5" />
-                        )}
-
-                        {/* Botão Mover Etapa em 1 Clique (Menu Rápido) */}
-                        <div className="relative">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setQuickMoveOpenId(isQuickMoveOpen ? null : order.id);
-                            }}
-                            title="Mover para qualquer etapa"
-                            className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface hover:bg-neutral-200 dark:hover:bg-neutral-800 text-light-text dark:text-dark-text transition-colors"
-                          >
-                            <ArrowRightLeft className="w-3 h-3 text-neutral-500" />
-                            <span>Mover</span>
-                          </button>
-
-                          {/* Menu Flutuante de Seleção Direta de Etapa */}
-                          {isQuickMoveOpen && (
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 z-30 w-52 bg-light-card dark:bg-dark-card border border-black dark:border-white rounded-lg shadow-xl p-1.5 space-y-1 animate-in fade-in zoom-in-95 duration-100"
-                            >
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-light-muted dark:text-dark-muted px-2 py-1 border-b border-light-border dark:border-dark-border">
-                                Mover para Etapa:
-                              </div>
-                              {COLUMNS.map((c) => {
-                                const isCurrent = order.status === c.status || (c.status === 'layout_aprovado' && order.status === 'medicao_visita') || (c.status === 'pronto_entrega' && order.status === 'entregue');
-                                return (
-                                  <button
-                                    key={c.status}
-                                    type="button"
-                                    onClick={() => {
-                                      onChangeStatus(order.id, c.status);
-                                      setQuickMoveOpenId(null);
-                                    }}
-                                    className={`w-full text-left text-xs px-2 py-1.5 rounded flex items-center justify-between transition-colors ${
-                                      isCurrent
-                                        ? 'bg-black text-white dark:bg-white dark:text-black font-semibold'
-                                        : 'hover:bg-light-surface dark:hover:bg-dark-surface text-light-text dark:text-dark-text'
-                                    }`}
-                                  >
-                                    <span className="truncate">{c.title}</span>
-                                    {isCurrent && <Check className="w-3.5 h-3.5 shrink-0" />}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Botão Avançar Próxima Etapa */}
-                        {next ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onChangeStatus(order.id, next);
-                            }}
-                            title="Avançar para próxima etapa"
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-colors"
-                          >
-                            <span>Avançar</span>
-                            <ChevronRight className="w-3 h-3" />
-                          </button>
-                        ) : (
-                          <div className="w-5" />
-                        )}
-                      </div>
-
+                      <OSKanbanCardContent
+                        order={order}
+                        selectedTag={selectedTag}
+                        onSelectTag={onSelectTag}
+                        onAdvance={() => {
+                          if (next) onChangeStatus(order.id, next);
+                        }}
+                        onManageTags={() => setTagModalOrder(order)}
+                      />
                     </div>
                   );
                 })}
 
-                {/* Dropzone Quando a Coluna está Vazia */}
-                {colOrders.length === 0 && !showDropTarget && (
-                  <div
-                    className={`flex-1 border-2 border-dashed rounded-lg flex flex-col items-center justify-center p-6 text-center text-xs transition-colors min-h-[220px] ${
-                      isOver
-                        ? 'border-black dark:border-white bg-black/5 dark:bg-white/5 text-black dark:text-white'
-                        : 'border-light-border dark:border-dark-border text-light-muted dark:text-dark-muted'
-                    }`}
-                  >
-                    <p className="text-[11px] font-medium">Nenhuma OS nesta etapa</p>
-                    <p className="text-[10px] opacity-70 mt-0.5">Arraste um card para cá</p>
+                {/* Dropzone Vazia */}
+                {rawColOrders.length === 0 && !isTargetCol && (
+                  <div className="py-12 text-center text-zinc-400 text-xs border border-dashed border-zinc-200 dark:border-zinc-800/80 rounded-lg">
+                    <span>Nenhuma obra nesta etapa</span>
                   </div>
                 )}
-
               </div>
-
             </div>
           );
         })}
       </div>
 
-      {/* Modal de Gestão de Etiquetas Trello */}
+      {/* Card Flutuante 100% Sólido estilo Trello (renderizado via Portal no body) */}
+      {typeof document !== 'undefined' &&
+        activeDrag &&
+        createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              left: activeDrag.currentPos.x - activeDrag.offset.x,
+              top: activeDrag.currentPos.y - activeDrag.offset.y,
+              width: activeDrag.cardRect.width,
+              pointerEvents: 'none',
+              zIndex: 99999,
+              transform: 'rotate(2.5deg) scale(1.02)',
+              transformOrigin: `${activeDrag.offset.x}px ${activeDrag.offset.y}px`,
+              boxShadow:
+                '0 25px 35px -5px rgba(0, 0, 0, 0.35), 0 12px 15px -5px rgba(0, 0, 0, 0.2)',
+            }}
+            className="bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xl p-3.5 cursor-grabbing opacity-100 ring-2 ring-blue-500/40 select-none shadow-2xl"
+          >
+            <OSKanbanCardContent
+              order={activeDrag.order}
+              selectedTag={selectedTag}
+            />
+          </div>,
+          document.body
+        )}
+
+      {/* Modal de Gestão de Etiquetas */}
       {tagModalOrder && onToggleTag && (
         <TagManagerModal
           isOpen={Boolean(tagModalOrder)}
