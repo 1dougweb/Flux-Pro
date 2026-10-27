@@ -364,50 +364,6 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({
               />
             </div>
 
-            {/* Status do Fluxo da Obra */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-1">
-                  Etapa de Produção
-                </label>
-                <select
-                  value={statusItem}
-                  onChange={(e) => {
-                    const val = e.target.value as StatusItemObra;
-                    setStatusItem(val);
-                    onUpdate(item.id, { status_item: val });
-                  }}
-                  className="w-full px-2.5 py-1.5 bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700/80 rounded-lg text-zinc-800 dark:text-zinc-200 focus:outline-none"
-                >
-                  <option value="layout">Layout / Medição</option>
-                  <option value="corte_pendente">Corte Pendente</option>
-                  <option value="em_producao">Em Produção</option>
-                  <option value="teste_eletrico">Teste Elétrico</option>
-                  <option value="pronto_instalacao">Pronto para Instalação</option>
-                  <option value="instalado">Instalado / Concluído</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-1">
-                  Status de Corte CNC
-                </label>
-                <select
-                  value={statusCorte}
-                  onChange={(e) => {
-                    const val = e.target.value as 'pendente' | 'cortado' | 'liberado';
-                    setStatusCorte(val);
-                    onUpdate(item.id, { status_corte: val });
-                  }}
-                  className="w-full px-2.5 py-1.5 bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700/80 rounded-lg text-zinc-800 dark:text-zinc-200 focus:outline-none"
-                >
-                  <option value="pendente">Pendente</option>
-                  <option value="cortado">Cortado</option>
-                  <option value="liberado">Liberado p/ Fábrica</option>
-                </select>
-              </div>
-            </div>
-
             {/* REPEATER DE ARQUIVOS COM UPLOAD & BIBLIOTECA */}
             <div className="p-3.5 bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-3">
               <div className="flex items-center justify-between">
